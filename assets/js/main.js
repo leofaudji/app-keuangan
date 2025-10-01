@@ -192,20 +192,18 @@ function runPageScripts(path) {
         initDashboardPage();
     } else if (cleanPath === '/transaksi') {
         initTransaksiPage();
-    } else if (cleanPath === '/daftar-jurnal') {
-        initDaftarJurnalPage();
     } else if (cleanPath === '/entri-jurnal') {
         initEntriJurnalPage();
     } else if (cleanPath === '/coa') {
         initCoaPage();
-    } else if (cleanPath === '/anggaran') {
-        initAnggaranPage();
     } else if (cleanPath === '/saldo-awal-neraca') {
         initSaldoAwalNeracaPage();
     } else if (cleanPath === '/saldo-awal-lr') {
         initSaldoAwalLRPage();
     } else if (cleanPath === '/laporan') {
         initLaporanPage();
+    } else if (cleanPath === '/laporan-harian') {
+        initLaporanHarianPage();
     } else if (cleanPath === '/buku-besar') {
         initBukuBesarPage();
     } else if (cleanPath === '/settings') {
@@ -223,6 +221,14 @@ function initDashboardPage() {
     const bulanFilter = document.getElementById('dashboard-bulan-filter');
     const tahunFilter = document.getElementById('dashboard-tahun-filter');
 
+    // Event listener untuk tombol "Tambah Transaksi"
+    const addTransaksiBtn = document.getElementById('dashboard-add-transaksi');
+    if (addTransaksiBtn) {
+        addTransaksiBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigate(addTransaksiBtn.href + '#add'); // Tambahkan hash untuk memicu modal
+        });
+    }
     if (!bulanFilter || !tahunFilter) return;
 
     function setupFilters() {
@@ -255,8 +261,9 @@ function initDashboardPage() {
         }
 
         const newWidgetsHtml = `
-            <div id="dashboard-content-wrapper">
-                <div class="row g-4">
+            <div id="dashboard-content-wrapper" class="mt-4">
+                <!-- Baris Statistik Utama -->
+                <div class="row g-3">
                 <div class="col-lg-3 col-md-6 mb-4">
                     <div class="card text-white bg-primary h-100">
                         <div class="card-body">
@@ -290,8 +297,45 @@ function initDashboardPage() {
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="row">
+                </div>
+
+                <!-- Baris Grafik Tren dan Status Neraca -->
+                <div class="row g-3">
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="card h-100" id="balance-status-card">
+                        <div class="card-body text-center d-flex flex-column justify-content-center">
+                             <div id="balance-status-icon" class="fs-1"><div class="spinner-border"></div></div>
+                             <h5 class="card-title mt-2" id="balance-status-text">Memeriksa Status...</h5>
+                             <small class="text-muted">Keseimbangan Neraca</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-9 col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Tren Laba/Rugi (30 Hari Terakhir)</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="profit-loss-trend-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                </div>
+
+                <!-- Baris Kategori Pengeluaran dan Transaksi Terbaru -->
+                <div class="row g-3">
+                <div class="col-lg-5 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Pengeluaran per Kategori</h5>
+                        </div>
+                        <div class="card-body d-flex justify-content-center align-items-center">
+                            <div style="position: relative; height:250px; width:100%">
+                                <canvas id="expense-category-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="col-lg-7 mb-4">
                     <div class="card h-100">
                         <div class="card-header">
@@ -311,23 +355,11 @@ function initDashboardPage() {
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-5 mb-4">
-                    <div class="card h-100">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">Pengeluaran per Kategori</h5>
-                        </div>
-                        <div class="card-body d-flex justify-content-center align-items-center">
-                            <div style="position: relative; height:250px; width:100%">
-                                <canvas id="expense-category-chart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
             </div>
         `;
         // Sisipkan setelah elemen h1 dan filter
-        const borderBottom = document.querySelector('.main-content .border-bottom');
+        const borderBottom = document.querySelector('.main-content .row.g-3.mb-4'); // Sisipkan setelah baris tombol aksi
         if (borderBottom) {
             borderBottom.insertAdjacentHTML('afterend', newWidgetsHtml);
         }
@@ -342,6 +374,78 @@ function initDashboardPage() {
             const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
 
             document.getElementById('total-saldo-widget').textContent = currencyFormatter.format(data.total_saldo);
+
+            // Render Balance Status
+            const balanceCard = document.getElementById('balance-status-card');
+            const balanceIcon = document.getElementById('balance-status-icon');
+            const balanceText = document.getElementById('balance-status-text');
+            const balanceStatus = data.balance_status;
+
+            // Hapus event listener lama jika ada untuk mencegah duplikasi
+            balanceCard.style.cursor = 'default';
+            balanceCard.onclick = null;
+
+            if (balanceStatus.is_balanced) {
+                balanceCard.classList.add('bg-success-subtle');
+                balanceIcon.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
+                balanceText.textContent = 'Balance';
+            } else {
+                balanceCard.classList.add('bg-danger-subtle');
+                balanceCard.style.cursor = 'pointer'; // Jadikan kartu bisa diklik
+                balanceIcon.innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+                balanceText.textContent = 'Tidak Balance';
+
+                // Tambahkan event listener untuk membuka modal detail
+                balanceCard.onclick = () => {
+                    const detailModalEl = document.getElementById('detailModal');
+                    const detailModal = new bootstrap.Modal(detailModalEl);
+                    document.getElementById('detailModalLabel').textContent = 'Detail Ketidakseimbangan Neraca';
+                    const modalBody = document.getElementById('detailModalBody');
+
+                    let journalDetailsHtml = '';
+                    if (balanceStatus.unbalanced_journals && balanceStatus.unbalanced_journals.length > 0) {
+                        journalDetailsHtml = `
+                            <h5 class="mt-4">Jurnal Tidak Seimbang Terdeteksi</h5>
+                            <p class="text-muted">Berikut adalah daftar entri jurnal yang kemungkinan menjadi penyebab ketidakseimbangan. Klik pada ID Jurnal untuk memperbaikinya.</p>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>ID Jurnal</th>
+                                            <th>Tanggal</th>
+                                            <th>Keterangan</th>
+                                            <th class="text-end">Total Debit</th>
+                                            <th class="text-end">Total Kredit</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${balanceStatus.unbalanced_journals.map(j => `
+                                            <tr>
+                                                <td><a href="${basePath}/entri-jurnal?edit_id=${j.id}">JRN-${String(j.id).padStart(5, '0')}</a></td>
+                                                <td>${new Date(j.tanggal).toLocaleDateString('id-ID')}</td>
+                                                <td>${j.keterangan}</td>
+                                                <td class="text-end">${currencyFormatter.format(j.total_debit)}</td>
+                                                <td class="text-end">${currencyFormatter.format(j.total_kredit)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                    }
+
+                    modalBody.innerHTML = `
+                        <p>Neraca Anda tidak seimbang. Berikut adalah rincian perhitungannya:</p>
+                        <dl class="row">
+                            <dt class="col-sm-6">Total Aset</dt><dd class="col-sm-6 text-end">${currencyFormatter.format(balanceStatus.total_aset)}</dd>
+                            <dt class="col-sm-6">Total Liabilitas + Ekuitas</dt><dd class="col-sm-6 text-end">${currencyFormatter.format(balanceStatus.total_liabilitas_ekuitas)}</dd>
+                            <dt class="col-sm-6 border-top pt-2">Selisih</dt><dd class="col-sm-6 text-end border-top pt-2 fw-bold text-danger">${currencyFormatter.format(balanceStatus.selisih)}</dd>
+                        </dl>
+                        ${journalDetailsHtml}
+                    `;
+                    detailModal.show();
+                };
+            }
             document.getElementById('pemasukan-widget').textContent = currencyFormatter.format(data.pemasukan_bulan_ini);
             document.getElementById('pengeluaran-widget').textContent = currencyFormatter.format(data.pengeluaran_bulan_ini);
             
@@ -392,6 +496,36 @@ function initDashboardPage() {
                 }
             });
 
+            // Render profit loss trend chart
+            const trendChartCanvas = document.getElementById('profit-loss-trend-chart');
+            if (window.trendChart) window.trendChart.destroy();
+            window.trendChart = new Chart(trendChartCanvas, {
+                type: 'line',
+                data: {
+                    labels: data.laba_rugi_harian.labels.map(d => new Date(d).toLocaleDateString('id-ID', {day: '2-digit', month: 'short'})),
+                    datasets: [{
+                        label: 'Laba / Rugi Harian',
+                        data: data.laba_rugi_harian.data,
+                        fill: true,
+                        backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                        borderColor: 'rgba(0, 122, 255, 1)',
+                        tension: 0.3,
+                        pointBackgroundColor: 'rgba(0, 122, 255, 1)',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(value) {
+                                    return 'Rp ' + new Intl.NumberFormat('id-ID').format(value);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         } catch (error) {
             showToast(`Gagal memuat data dashboard: ${error.message}`, 'error');
         }
@@ -412,6 +546,13 @@ function initTransaksiPage() {
     const jurnalDetailModalEl = document.getElementById('jurnalDetailModal');
     const modal = new bootstrap.Modal(modalEl);
     const form = document.getElementById('transaksi-form');
+
+    // Cek jika URL memiliki hash '#add', buka modal secara otomatis
+    if (window.location.hash === '#add') {
+        // Gunakan timeout kecil untuk memastikan modal siap
+        setTimeout(() => document.getElementById('add-transaksi-btn')?.click(), 100);
+    }
+
     const saveBtn = document.getElementById('save-transaksi-btn');
     const jenisBtnGroup = document.getElementById('jenis-btn-group');
 
@@ -424,6 +565,10 @@ function initTransaksiPage() {
     const paginationContainer = document.getElementById('transaksi-pagination');
 
     if (!tableBody) return;
+
+    // Load saved limit from localStorage
+    const savedLimit = localStorage.getItem('transaksi_limit');
+    if (savedLimit) limitSelect.value = savedLimit;
 
     const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
 
@@ -713,6 +858,7 @@ function initTransaksiPage() {
     const combinedFilterHandler = () => {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => loadTransaksi(1), 300);
+        localStorage.setItem('transaksi_limit', limitSelect.value); // Save limit on change
     };
 
     [searchInput, akunKasFilter, bulanFilter, tahunFilter, limitSelect].forEach(el => {
@@ -900,6 +1046,14 @@ function initLaporanPage() {
     const arusKasTglMulai = document.getElementById('arus-kas-tanggal-mulai');
     const arusKasTglAkhir = document.getElementById('arus-kas-tanggal-akhir');
 
+    const exportNeracaPdfBtn = document.getElementById('export-neraca-pdf');
+    const exportLrPdfBtn = document.getElementById('export-lr-pdf');
+    const exportAkPdfBtn = document.getElementById('export-ak-pdf');
+    const exportNeracaCsvBtn = document.getElementById('export-neraca-csv');
+    const exportLrCsvBtn = document.getElementById('export-lr-csv');
+    const exportAkCsvBtn = document.getElementById('export-ak-csv');
+
+
     const storageKey = 'laporan_filters';
 
     if (!neracaTanggalInput || !neracaContent) return;
@@ -960,7 +1114,7 @@ function initLaporanPage() {
                 html += `
                     <tr>
                         <td style="padding-left: ${padding}px;" class="${fw}">${item.nama_akun}</td>
-                        <td class="text-end ${fw}">${currencyFormatter.format(saldoToShow)}</td>
+                        <td class="text-end ${fw}">${formatCurrencyAccounting(saldoToShow)}</td>
                     </tr>
                 `;
                 if (isParent) {
@@ -1002,8 +1156,7 @@ function initLaporanPage() {
             <div class="row">
                 <div class="col-md-6">
                     <h5>Aset</h5>
-                    <table class="table table-sm"><tbody>${renderRows(asetData)}</tbody></table>
-                    <table class="table"><tbody><tr class="table-light"><td class="fw-bold">TOTAL ASET</td><td class="text-end fw-bold">${formatCurrencyAccounting(totalAset)}</td></tr></tbody></table><br>
+                    <table class="table table-sm"><tbody>${renderRows(asetData)}</tbody></table><br>
                 </div>
                 <div class="col-md-6">
                     <h5>Liabilitas</h5>
@@ -1200,9 +1353,291 @@ function initLaporanPage() {
     arusKasTglMulai.addEventListener('change', handleArusKasChange);
     arusKasTglAkhir.addEventListener('change', handleArusKasChange);
 
+    // --- Event Listeners untuk Export ---
+
+    // Fungsi helper untuk cetak via browser
+    const printReport = (elementToPrint, titleText) => {
+        // Cari elemen .card terdekat yang membungkus konten laporan
+        const reportCard = elementToPrint.closest('.card');
+        if (!reportCard) {
+            showToast('Area laporan tidak ditemukan untuk dicetak.', 'error');
+            return;
+        }
+ 
+        // 1. Buat header laporan dan sisipkan di bagian atas card
+        const printHeader = document.createElement('div');
+        printHeader.className = 'print-only-header';
+        printHeader.innerHTML = `<h3>${titleText}</h3>`;
+        reportCard.prepend(printHeader);
+ 
+        // 2. Tambahkan class 'is-printing' ke body dan 'print-area' ke card
+        document.body.classList.add('is-printing');
+        reportCard.classList.add('print-area');
+ 
+        // 3. Panggil dialog cetak browser
+        window.print();
+ 
+        // 4. Setelah cetak (atau dibatalkan), bersihkan semuanya
+        // Event 'afterprint' memastikan ini berjalan setelah dialog cetak ditutup
+        const cleanup = () => {
+            document.body.classList.remove('is-printing');
+            reportCard.classList.remove('print-area');
+            printHeader.remove();
+            window.removeEventListener('afterprint', cleanup);
+        };
+        window.addEventListener('afterprint', cleanup);
+    };
+
+    // Event listener untuk tombol PDF (sekarang menggunakan print browser)
+    exportNeracaPdfBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const tanggal = new Date(neracaTanggalInput.value).toLocaleDateString('id-ID', { dateStyle: 'long' });
+        printReport(neracaContent, `Laporan Posisi Keuangan (Neraca) per ${tanggal}`);
+    });
+
+    exportLrPdfBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const periode = `Periode ${new Date(labaRugiTglMulai.value).toLocaleDateString('id-ID')} s/d ${new Date(labaRugiTglAkhir.value).toLocaleDateString('id-ID')}`;
+        printReport(labaRugiContent, `Laporan Laba Rugi ${periode}`);
+    });
+
+    exportAkPdfBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const periode = `Periode ${new Date(arusKasTglMulai.value).toLocaleDateString('id-ID')} s/d ${new Date(arusKasTglAkhir.value).toLocaleDateString('id-ID')}`;
+        printReport(arusKasContent, `Laporan Arus Kas ${periode}`);
+    });
+
+    // Event listener untuk tombol CSV (tetap sama)
+    exportNeracaCsvBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.open(`${basePath}/api/laporan/cetak?report=neraca&format=csv&tanggal=${neracaTanggalInput.value}`, '_blank');
+    });
+    exportLrCsvBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+            window.open(`${basePath}/api/laporan/cetak?report=laba-rugi&format=csv&start=${labaRugiTglMulai.value}&end=${labaRugiTglAkhir.value}`, '_blank');
+    });
+    exportAkCsvBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+            window.open(`${basePath}/api/laporan/cetak?report=arus-kas&format=csv&start=${arusKasTglMulai.value}&end=${arusKasTglAkhir.value}`, '_blank');
+    });
+
     // Initial Load
     loadAndSetFilters();
     loadNeraca();
+}
+
+function initLaporanHarianPage() {
+    const tanggalInput = document.getElementById('lh-tanggal');
+    const tampilkanBtn = document.getElementById('lh-tampilkan-btn');
+    const reportContent = document.getElementById('lh-report-content');
+    const reportHeader = document.getElementById('lh-report-header');
+    const exportPdfBtn = document.getElementById('export-lh-pdf');
+    const exportCsvBtn = document.getElementById('export-lh-csv');
+    const summaryContent = document.getElementById('lh-summary-content');
+    const chartCanvas = document.getElementById('lh-chart');
+
+    if (!tanggalInput) return;
+
+    tanggalInput.valueAsDate = new Date(); // Set default to today
+
+    const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+    let dailyChart = null; // Variable to hold chart instance
+    async function loadReport() {
+        const tanggal = tanggalInput.value;
+        if (!tanggal) {
+            showToast('Harap pilih tanggal terlebih dahulu.', 'error');
+            return;
+        }
+
+        const originalBtnHtml = tampilkanBtn.innerHTML;
+        tampilkanBtn.disabled = true;
+        tampilkanBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Memuat...`;
+        reportContent.innerHTML = `<div class="text-center p-5"><div class="spinner-border"></div></div>`;
+        summaryContent.innerHTML = `<div class="text-center p-5"><div class="spinner-border"></div></div>`;
+        reportHeader.textContent = `Detail Transaksi Harian untuk ${new Date(tanggal).toLocaleDateString('id-ID', { dateStyle: 'full' })}`;
+
+        try {
+            const response = await fetch(`${basePath}/api/laporan-harian?tanggal=${tanggal}`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            const { saldo_awal, transaksi, total_pemasukan, total_pengeluaran, saldo_akhir } = result.data;
+
+            // Render Summary Card
+            summaryContent.innerHTML = `
+                <dl class="row">
+                    <dt class="col-sm-5">Saldo Awal Hari</dt>
+                    <dd class="col-sm-7 text-end">${currencyFormatter.format(saldo_awal)}</dd>
+
+                    <dt class="col-sm-5 text-success">Total Pemasukan</dt>
+                    <dd class="col-sm-7 text-end text-success">${currencyFormatter.format(total_pemasukan)}</dd>
+
+                    <dt class="col-sm-5 text-danger">Total Pengeluaran</dt>
+                    <dd class="col-sm-7 text-end text-danger">${currencyFormatter.format(total_pengeluaran)}</dd>
+
+                    <hr class="my-2">
+
+                    <dt class="col-sm-5 fw-bold">Saldo Akhir Hari</dt>
+                    <dd class="col-sm-7 text-end fw-bold">${currencyFormatter.format(saldo_akhir)}</dd>
+                </dl>
+            `;
+
+            // Render Chart
+            if (dailyChart) {
+                dailyChart.destroy();
+            }
+            dailyChart = new Chart(chartCanvas, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Pemasukan', 'Pengeluaran'],
+                    datasets: [{
+                        label: 'Jumlah',
+                        data: [total_pemasukan, total_pengeluaran],
+                        backgroundColor: [
+                            'rgba(25, 135, 84, 0.7)', // Success
+                            'rgba(220, 53, 69, 0.7)'  // Danger
+                        ],
+                        borderColor: [
+                            'rgba(25, 135, 84, 1)',
+                            'rgba(220, 53, 69, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+
+            let tableHtml = `
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Keterangan</th>
+                            <th>Akun Terkait</th>
+                            <th class="text-end">Pemasukan</th>
+                            <th class="text-end">Pengeluaran</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="3" class="fw-bold">Saldo Awal</td>
+                            <td class="text-end fw-bold" colspan="2">${currencyFormatter.format(saldo_awal)}</td>
+                        </tr>
+            `;
+
+            if (transaksi.length > 0) {
+                transaksi.forEach(tx => {
+                    let pemasukan = 0, pengeluaran = 0;
+                    let akunTerkait = '';
+                    let idHtml = '';
+
+                    if (tx.source === 'transaksi') {
+                        const idDisplay = tx.nomor_referensi || `TRX-${tx.id}`;
+                        idHtml = `<a href="#" class="view-detail-btn" data-type="transaksi" data-id="${tx.id}">${idDisplay}</a>`;
+                        if (tx.jenis === 'pemasukan') { pemasukan = tx.jumlah; akunTerkait = tx.akun_utama; }
+                        if (tx.jenis === 'pengeluaran') { pengeluaran = tx.jumlah; akunTerkait = tx.akun_utama; }
+                        if (tx.jenis === 'transfer') { akunTerkait = `Dari: ${tx.akun_kas}<br>Ke: ${tx.akun_tujuan}`; }
+                    } else { // Jurnal
+                        const idDisplay = `JRN-${String(tx.id).padStart(5, '0')}`;
+                        idHtml = `<a href="#" class="view-detail-btn" data-type="jurnal" data-id="${tx.id}">${idDisplay}</a>`;
+                        akunTerkait = '<i>Jurnal Umum</i>';
+                        // Untuk jurnal, kita hanya tampilkan totalnya di summary, bukan per baris
+                    }
+
+                    tableHtml += `
+                        <tr>
+                            <td><small>${idHtml}</small></td>
+                            <td>${tx.keterangan}</td>
+                            <td><small>${akunTerkait}</small></td>
+                            <td class="text-end text-success">${pemasukan > 0 ? currencyFormatter.format(pemasukan) : '-'}</td>
+                            <td class="text-end text-danger">${pengeluaran > 0 ? currencyFormatter.format(pengeluaran) : '-'}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tableHtml += `<tr><td colspan="5" class="text-center text-muted">Tidak ada transaksi pada tanggal ini.</td></tr>`;
+            }
+
+            tableHtml += `
+                    </tbody>
+                    <tfoot class="table-group-divider">
+                        <tr class="fw-bold"><td colspan="3" class="text-end">Total</td><td class="text-end text-success">${currencyFormatter.format(total_pemasukan)}</td><td class="text-end text-danger">${currencyFormatter.format(total_pengeluaran)}</td></tr>
+                        <tr class="fw-bold table-primary"><td colspan="3" class="text-end">Saldo Akhir</td><td class="text-end" colspan="2">${currencyFormatter.format(saldo_akhir)}</td></tr>
+                    </tfoot>
+                </table>`;
+            reportContent.innerHTML = tableHtml;
+
+        } catch (error) {
+            reportContent.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+            summaryContent.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+        } finally {
+            tampilkanBtn.disabled = false;
+            tampilkanBtn.innerHTML = originalBtnHtml;
+        }
+    }
+
+    tampilkanBtn.addEventListener('click', loadReport);
+
+    reportContent.addEventListener('click', async (e) => {
+        const viewBtn = e.target.closest('.view-detail-btn');
+        if (!viewBtn) return;
+
+        e.preventDefault();
+        const { type, id } = viewBtn.dataset;
+
+        const detailModalEl = document.getElementById('detailModal');
+        const detailModal = new bootstrap.Modal(detailModalEl);
+        const modalBody = document.getElementById('detailModalBody');
+        const modalLabel = document.getElementById('detailModalLabel');
+
+        modalLabel.textContent = `Detail ${type === 'transaksi' ? 'Transaksi' : 'Jurnal'}`;
+        modalBody.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
+        detailModal.show();
+
+        try {
+            const endpoint = type === 'transaksi' 
+                ? `${basePath}/api/transaksi?action=get_journal_entry&id=${id}`
+                : `${basePath}/api/entri-jurnal?action=get_single&id=${id}`;
+
+            const response = await fetch(endpoint);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            const header = type === 'transaksi' ? result.data.transaksi : result.data.header;
+            const details = type === 'transaksi' ? result.data.jurnal : result.data.details;
+
+            let tableHtml = `
+                <p><strong>Tanggal:</strong> ${new Date(header.tanggal).toLocaleDateString('id-ID', {day:'2-digit', month:'long', year:'numeric'})}</p>
+                ${header.nomor_referensi ? `<p><strong>No. Referensi:</strong> ${header.nomor_referensi}</p>` : ''}
+                <p><strong>Keterangan:</strong> ${header.keterangan}</p>
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light"><tr><th>Akun</th><th class="text-end">Debit</th><th class="text-end">Kredit</th></tr></thead>
+                    <tbody>
+            `;
+
+            details.forEach(line => {
+                const akunText = line.kode_akun ? `${line.kode_akun} - ${line.nama_akun}` : line.akun;
+                tableHtml += `
+                    <tr>
+                        <td>${akunText}</td>
+                        <td class="text-end">${line.debit > 0 ? currencyFormatter.format(line.debit) : '-'}</td>
+                        <td class="text-end">${line.kredit > 0 ? currencyFormatter.format(line.kredit) : '-'}</td>
+                    </tr>
+                `;
+            });
+            tableHtml += `</tbody></table>`;
+            modalBody.innerHTML = tableHtml;
+
+        } catch (error) {
+            modalBody.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+        }
+    });
+
+    // Export buttons can be implemented similarly to other reports, pointing to a new handler or an updated one.
+
+    // Initial load for today's report
+    loadReport();
 }
 
 function initSaldoAwalNeracaPage() {
@@ -1377,6 +1812,11 @@ function initBukuBesarPage() {
     const reportHeader = document.getElementById('bb-report-header');
 
     if (!akunFilter) return;
+
+    // Set default dates to today
+    const today = new Date().toISOString().split('T')[0];
+    tglMulai.value = today;
+    tglAkhir.value = today;
 
     const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 2 });
 
@@ -1554,8 +1994,7 @@ function initEntriJurnalPage() {
         e.preventDefault();
         const action = document.getElementById('jurnal-action').value || 'add';
         const saveBtn = document.getElementById('save-jurnal-entry-btn');
-        const formData = new FormData(form);
-        formData.set('action', action); // Ensure action is set
+        const formData = new FormData(form); // The action is now correctly set from the hidden input
         const originalBtnHtml = saveBtn.innerHTML;
         saveBtn.disabled = true;
         saveBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Menyimpan...`;
@@ -1736,15 +2175,25 @@ function initDaftarJurnalPage() {
     const combinedFilterHandler = () => {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => loadJurnal(1), 300);
+        localStorage.setItem('jurnal_limit', limitSelect.value); // Save limit on change
     };
     [searchInput, startDateFilter, endDateFilter, limitSelect].forEach(el => el.addEventListener('change', combinedFilterHandler));
     searchInput.addEventListener('input', combinedFilterHandler);
 
-    loadJurnal();
-}
+    // Load saved limit from localStorage before the initial load
+    const savedJurnalLimit = localStorage.getItem('jurnal_limit');
+    if (savedJurnalLimit) {
+        limitSelect.value = savedJurnalLimit;
+    }
 
-function initEntriJurnalPage() {
-    // ... (kode dari langkah sebelumnya)
+    // Set default dates to the current month on initial load
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    startDateFilter.value = firstDay;
+    endDateFilter.value = lastDay;
+    // Initial load
+    loadJurnal();
 }
 
 function initSettingsPage() {
@@ -2120,7 +2569,7 @@ function initAnggaranPage() {
         showToast(result.message, result.status === 'success' ? 'success' : 'error');
         if (result.status === 'success') {
             addAnggaranForm.reset();
-            kategoriSelect.selectedIndex = 0; // Reset dropdown
+            document.getElementById('new-kategori').selectedIndex = 0; // Reset dropdown
             loadBudgetManagement();
         }
     });
@@ -2159,10 +2608,6 @@ function initAnggaranPage() {
 
     loadReport();
     loadExpenseCategoriesForSelect(); // Panggil fungsi ini saat halaman anggaran diinisialisasi
-}
-
-function initDaftarJurnalPage() {
-    // ... (kode dari langkah sebelumnya)
 }
 
 

@@ -33,6 +33,15 @@ if (!$is_spa_request) {
                 <div class="d-flex align-items-center">
                     <label for="neraca-tanggal" class="form-label me-2 mb-0">Per Tanggal:</label>
                     <input type="date" id="neraca-tanggal" class="form-control form-control-sm" style="width: auto;">
+                    <div class="btn-group ms-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-download"></i> Export
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#" id="export-neraca-pdf"><i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>Cetak PDF</a></li>
+                            <li><a class="dropdown-item" href="#" id="export-neraca-csv"><i class="bi bi-filetype-csv text-success me-2"></i>Export CSV</a></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
             <div class="card-body" id="neraca-content">
@@ -52,6 +61,15 @@ if (!$is_spa_request) {
                         <input type="date" id="laba-rugi-tanggal-mulai" class="form-control form-control-sm me-2" style="width: auto;">
                         <label for="laba-rugi-tanggal-akhir" class="form-label me-2 mb-0 small">Sampai:</label>
                         <input type="date" id="laba-rugi-tanggal-akhir" class="form-control form-control-sm" style="width: auto;">
+                        <div class="btn-group ms-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-download"></i> Export
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="#" id="export-lr-pdf"><i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>Cetak PDF</a></li>
+                                <li><a class="dropdown-item" href="#" id="export-lr-csv"><i class="bi bi-filetype-csv text-success me-2"></i>Export CSV</a></li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
                 <div id="laba-rugi-content">
@@ -72,6 +90,15 @@ if (!$is_spa_request) {
                         <input type="date" id="arus-kas-tanggal-mulai" class="form-control form-control-sm me-2" style="width: auto;">
                         <label for="arus-kas-tanggal-akhir" class="form-label me-2 mb-0 small">Sampai:</label>
                         <input type="date" id="arus-kas-tanggal-akhir" class="form-control form-control-sm" style="width: auto;">
+                        <div class="btn-group ms-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-download"></i> Export
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="#" id="export-ak-pdf"><i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>Cetak PDF</a></li>
+                                <li><a class="dropdown-item" href="#" id="export-ak-csv"><i class="bi bi-filetype-csv text-success me-2"></i>Export CSV</a></li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
                 <div id="arus-kas-content">

@@ -71,13 +71,13 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
             <a class="nav-link" href="<?= base_url('/laporan') ?>"><i class="bi bi-bar-chart-line-fill"></i> Laporan Keuangan</a>
         </li>
         <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/laporan-harian') ?>"><i class="bi bi-calendar-day"></i> Laporan Harian</a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/buku-besar') ?>"><i class="bi bi-book"></i> Buku Besar</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/daftar-jurnal') ?>"><i class="bi bi-list-ol"></i> Daftar Jurnal</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/anggaran') ?>"><i class="bi bi-clipboard-data-fill"></i> Anggaran</a>
         </li>
 
         <!-- Pengaturan -->

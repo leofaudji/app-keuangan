@@ -247,3 +247,139 @@ function get_cash_balance_on_date($conn, $user_id, $date) {
 
     return $saldo_awal_kas + (float)$mutasi_trx['total_pemasukan'] - (float)$mutasi_trx['total_pengeluaran'] + $mutasi_jurnal;
 }
+
+/**
+ * Menemukan entri jurnal yang tidak seimbang (total debit != total kredit) hingga tanggal tertentu.
+ *
+ * @param mysqli $conn Koneksi database.
+ * @param int $user_id ID pengguna.
+ * @param string $per_tanggal Tanggal dalam format Y-m-d.
+ * @return array Daftar entri jurnal yang tidak seimbang.
+ */
+function find_unbalanced_journal_entries($conn, $user_id, $per_tanggal) {
+    $stmt = $conn->prepare("
+        SELECT 
+            je.id, 
+            je.tanggal, 
+            je.keterangan, 
+            SUM(jd.debit) as total_debit, 
+            SUM(jd.kredit) as total_kredit
+        FROM jurnal_entries je
+        JOIN jurnal_details jd ON je.id = jd.jurnal_entry_id
+        WHERE je.user_id = ? AND je.tanggal <= ?
+        GROUP BY je.id, je.tanggal, je.keterangan
+        HAVING ABS(SUM(jd.debit) - SUM(jd.kredit)) > 0.01
+        ORDER BY je.tanggal DESC
+    ");
+    $stmt->bind_param('is', $user_id, $per_tanggal);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $result;
+}
+
+/**
+ * Menghitung dan memeriksa keseimbangan neraca (Aset = Liabilitas + Ekuitas) pada tanggal tertentu.
+ * Dibuat khusus untuk Dashboard agar tidak mengganggu laporan_neraca_handler.php.
+ *
+ * @param mysqli $conn Koneksi database.
+ * @param int $user_id ID pengguna.
+ * @param string $per_tanggal Tanggal dalam format Y-m-d.
+ * @return bool True jika seimbang, false jika tidak.
+ */
+function get_balance_sheet_status($conn, $user_id, $per_tanggal) {
+    try {
+        // 1. Ambil SEMUA akun
+        $stmt_accounts = $conn->prepare("SELECT id, tipe_akun, saldo_normal, saldo_awal FROM accounts WHERE user_id = ?");
+        $stmt_accounts->bind_param('i', $user_id);
+        $stmt_accounts->execute();
+        $accounts_result = $stmt_accounts->get_result();
+        $accounts = [];
+        while ($row = $accounts_result->fetch_assoc()) {
+            $accounts[$row['id']] = $row;
+            $accounts[$row['id']]['saldo_akhir'] = (float)$row['saldo_awal'];
+        }
+        $stmt_accounts->close();
+
+        // 2. Proses mutasi dari transaksi sederhana
+        $stmt_transactions = $conn->prepare("SELECT jenis, jumlah, account_id, kas_account_id, kas_tujuan_account_id FROM transaksi WHERE user_id = ? AND tanggal <= ?");
+        $stmt_transactions->bind_param('is', $user_id, $per_tanggal);
+        $stmt_transactions->execute();
+        $transactions_result = $stmt_transactions->get_result();
+        while ($tx = $transactions_result->fetch_assoc()) {
+            $jumlah = (float)$tx['jumlah'];
+            if ($tx['jenis'] === 'pemasukan') {
+                if (isset($accounts[$tx['kas_account_id']])) $accounts[$tx['kas_account_id']]['saldo_akhir'] += $jumlah;
+                if (isset($accounts[$tx['account_id']])) $accounts[$tx['account_id']]['saldo_akhir'] += $jumlah;
+            } elseif ($tx['jenis'] === 'pengeluaran') {
+                if (isset($accounts[$tx['kas_account_id']])) $accounts[$tx['kas_account_id']]['saldo_akhir'] -= $jumlah;
+                if (isset($accounts[$tx['account_id']])) {
+                    if ($accounts[$tx['account_id']]['saldo_normal'] === 'Debit') {
+                        $accounts[$tx['account_id']]['saldo_akhir'] += $jumlah;
+                    } else {
+                        $accounts[$tx['account_id']]['saldo_akhir'] -= $jumlah;
+                    }
+                }
+            } elseif ($tx['jenis'] === 'transfer') {
+                if (isset($accounts[$tx['kas_account_id']])) $accounts[$tx['kas_account_id']]['saldo_akhir'] -= $jumlah;
+                if (isset($accounts[$tx['kas_tujuan_account_id']])) $accounts[$tx['kas_tujuan_account_id']]['saldo_akhir'] += $jumlah;
+            }
+        }
+        $stmt_transactions->close();
+
+        // 3. Proses mutasi dari Jurnal Umum
+        $stmt_jurnal = $conn->prepare("SELECT jd.account_id, jd.debit, jd.kredit FROM jurnal_details jd JOIN jurnal_entries je ON jd.jurnal_entry_id = je.id WHERE je.user_id = ? AND je.tanggal <= ?");
+        $stmt_jurnal->bind_param('is', $user_id, $per_tanggal);
+        $stmt_jurnal->execute();
+        $jurnal_result = $stmt_jurnal->get_result();
+        while ($jurnal_line = $jurnal_result->fetch_assoc()) {
+            if (isset($accounts[$jurnal_line['account_id']])) {
+                $current_account = &$accounts[$jurnal_line['account_id']];
+                if ($current_account['saldo_normal'] === 'Debit') {
+                    $current_account['saldo_akhir'] += (float)$jurnal_line['debit'] - (float)$jurnal_line['kredit'];
+                } else {
+                    $current_account['saldo_akhir'] += (float)$jurnal_line['kredit'] - (float)$jurnal_line['debit'];
+                }
+            }
+        }
+        $stmt_jurnal->close();
+
+        // 4. Hitung total Aset, Liabilitas, dan Ekuitas
+        $total_aset = 0;
+        $total_liabilitas_ekuitas = 0;
+        $total_pendapatan = 0;
+        $total_beban = 0;
+
+        foreach ($accounts as $acc) {
+            if ($acc['tipe_akun'] === 'Aset') $total_aset += $acc['saldo_akhir'];
+            if ($acc['tipe_akun'] === 'Liabilitas') $total_liabilitas_ekuitas += $acc['saldo_akhir'];
+            if ($acc['tipe_akun'] === 'Ekuitas') $total_liabilitas_ekuitas += $acc['saldo_akhir'];
+            if ($acc['tipe_akun'] === 'Pendapatan') $total_pendapatan += $acc['saldo_akhir'];
+            if ($acc['tipe_akun'] === 'Beban') $total_beban += $acc['saldo_akhir'];
+        }
+
+        // 5. Tambahkan Laba (Rugi) Periode Berjalan ke sisi Liabilitas + Ekuitas
+        $laba_rugi_berjalan = $total_pendapatan - $total_beban;
+        $total_liabilitas_ekuitas += $laba_rugi_berjalan;
+
+        // 6. Bandingkan total dengan toleransi kecil untuk floating point
+        $is_balanced = abs($total_aset - $total_liabilitas_ekuitas) < 0.01;
+
+        if ($is_balanced) {
+            return ['is_balanced' => true];
+        } else {
+            return [
+                'is_balanced' => false,
+                'total_aset' => $total_aset,
+                'total_liabilitas_ekuitas' => $total_liabilitas_ekuitas,
+                'selisih' => $total_aset - $total_liabilitas_ekuitas,
+                'unbalanced_journals' => find_unbalanced_journal_entries($conn, $user_id, $per_tanggal)
+            ];
+        }
+
+    } catch (Exception $e) {
+        // Jika terjadi error, anggap tidak balance
+        error_log("get_balance_sheet_status error: " . $e->getMessage());
+        return ['is_balanced' => false, 'message' => $e->getMessage()];
+    }
+}

@@ -29,7 +29,7 @@ try {
 
             // Get details
             $stmt_details = $conn->prepare("
-                SELECT jd.l_details jd
+                SELECT jd.account_id, jd.debit, jd.kredit, a.kode_akun, a.nama_akun FROM jurnal_details jd
                 JOIN accounts a ON jd.account_id = a.id
                 WHERE jd.jurnal_entry_id = ?
                 ORDER BY jd.id ASC
@@ -79,10 +79,16 @@ try {
             JOIN jurnal_details jd ON je.id = jd.jurnal_entry_id
             $where_sql
             GROUP BY je.id, je.tanggal, je.keterangan
-            ORDER BY je.tanggal DESC, je.id DESC
-            LIMIT ? OFFSET ?
+            ORDER BY je.tanggal DESC, je.id DESC 
         ";
-        $params[0] .= 'ii'; $params[] = $limit; $params[] = $offset;
+
+        // Handle pagination only if limit is not -1 (ALL)
+        if ($limit != -1) {
+            $query .= " LIMIT ? OFFSET ?";
+            $params[0] .= 'ii'; 
+            $params[] = $limit; 
+            $params[] = $offset;
+        }
         $stmt = $conn->prepare($query);
         $bind_params_main = [&$params[0]];
         for ($i = 1; $i < count($params); $i++) {
@@ -130,16 +136,32 @@ try {
         }
 
         $conn->begin_transaction();
-ies)
-)");
-       ss
+
+        if ($action === 'add') {
+            // 1. Insert header to get the new ID
+            $stmt_header = $conn->prepare("INSERT INTO jurnal_entries (user_id, tanggal, keterangan) VALUES (?, ?, ?)");
+            $stmt_header->bind_param('iss', $user_id, $tanggal, $keterangan);
+            $stmt_header->execute();
+            $jurnal_entry_id = $conn->insert_id;
+            $stmt_header->close();
+
             // 2. Insert ke tabel detail (jurnal_details)
             $stmt_detail = $conn->prepare("INSERT INTO jurnal_details (jurnal_entry_id, account_id, debit, kredit) VALUES (?, ?, ?, ?)");
             foreach ($lines as $line) {
                 $account_id = (int)$line['account_id'];
                 $debit = (float)($line['debit'] ?? 0);
-                $kredit =  
-{
+                $kredit = (float)($line['kredit'] ?? 0);
+                if ($debit > 0 || $kredit > 0) {
+                    $stmt_detail->bind_param('iidd', $jurnal_entry_id, $account_id, $debit, $kredit);
+                    $stmt_detail->execute();
+                }
+            }
+            $stmt_detail->close();
+
+            log_activity($_SESSION['username'], 'Tambah Entri Jurnal', "Jurnal majemuk baru '{$keterangan}' ditambahkan.");
+            echo json_encode(['status' => 'success', 'message' => 'Entri jurnal berhasil ditambahkan.']);
+
+        } elseif ($action === 'update') {
             $id = (int)($_POST['id'] ?? 0);
             if ($id <= 0) throw new Exception("ID Jurnal tidak valid untuk diperbarui.");
 

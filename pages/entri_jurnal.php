@@ -15,6 +15,8 @@ if (!$is_spa_request) {
     </div>
     <div class="card-body">
         <form id="entri-jurnal-form">
+            <input type="hidden" name="id" id="jurnal-id">
+            <input type="hidden" name="action" id="jurnal-action" value="add">
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label for="jurnal-tanggal" class="form-label">Tanggal</label>

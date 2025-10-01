@@ -26,11 +26,6 @@ try {
     $accounts = [];
     while ($row = $accounts_result->fetch_assoc()) {
         $accounts[$row['id']] = $row;
-        // Saldo awal harus disesuaikan dengan saldo normal.
-        // Akun dengan saldo normal Kredit (Liabilitas, Ekuitas) disimpan sebagai negatif,
-        // tapi untuk perhitungan mutasi, kita mulai dari nilai absolutnya (positif).
-        // Tanda negatif/positif akan ditentukan oleh mutasi Debit/Kredit.
-        // Namun, dalam sistem ini, kita akan tetap menggunakan nilai aslinya karena mutasi sudah benar.
         $accounts[$row['id']]['saldo_akhir'] = (float)$row['saldo_awal'];
     }
     $stmt_accounts->close();
@@ -49,20 +44,28 @@ try {
     while ($tx = $transactions_result->fetch_assoc()) {
         $jumlah = (float)$tx['jumlah'];
         if ($tx['jenis'] === 'pemasukan') {
-            if (isset($accounts[$tx['kas_account_id']])) $accounts[$tx['kas_account_id']]['saldo_akhir'] += $jumlah; // Aset (Kas) bertambah
-            if (isset($accounts[$tx['account_id']])) $accounts[$tx['account_id']]['saldo_akhir'] += $jumlah; // Pendapatan bertambah
-        } elseif ($tx['jenis'] === 'pengeluaran') {
-            if (isset($accounts[$tx['kas_account_id']])) $accounts[$tx['kas_account_id']]['saldo_akhir'] -= $jumlah; // Aset (Kas) berkurang
-            // Akun Beban bertambah
-            if (isset($accounts[$tx['account_id']]) && $accounts[$tx['account_id']]['tipe_akun'] === 'Beban') {
+            // Akun Kas (Aset, Debit normal) bertambah
+            if (isset($accounts[$tx['kas_account_id']])) {
+                $accounts[$tx['kas_account_id']]['saldo_akhir'] += $jumlah;
+            }
+            // Akun Pendapatan (Kredit normal) bertambah
+            if (isset($accounts[$tx['account_id']])) {
                 $accounts[$tx['account_id']]['saldo_akhir'] += $jumlah;
             }
-            // Jika pengeluaran untuk membayar Liabilitas, saldo Liabilitas berkurang
-            if (isset($accounts[$tx['account_id']]) && $accounts[$tx['account_id']]['tipe_akun'] === 'Liabilitas') {
-                $accounts[$tx['account_id']]['saldo_akhir'] -= $jumlah;
+        } elseif ($tx['jenis'] === 'pengeluaran') {
+            // Akun Kas (Aset, Debit normal) berkurang
+            if (isset($accounts[$tx['kas_account_id']])) {
+                $accounts[$tx['kas_account_id']]['saldo_akhir'] -= $jumlah;
+            }
+            // Akun lawan (Beban atau Liabilitas)
+            if (isset($accounts[$tx['account_id']])) {
+                if ($accounts[$tx['account_id']]['saldo_normal'] === 'Debit') { // e.g., Beban
+                    $accounts[$tx['account_id']]['saldo_akhir'] += $jumlah;
+                } else { // e.g., Liabilitas (saldo normal Kredit)
+                    $accounts[$tx['account_id']]['saldo_akhir'] -= $jumlah; // Pembayaran utang mengurangi liabilitas
+                }
             }
         } elseif ($tx['jenis'] === 'transfer') {
-            // Kas sumber berkurang (Kredit), Kas tujuan bertambah (Debit)
             if (isset($accounts[$tx['kas_account_id']])) $accounts[$tx['kas_account_id']]['saldo_akhir'] -= $jumlah;
             if (isset($accounts[$tx['kas_tujuan_account_id']])) $accounts[$tx['kas_tujuan_account_id']]['saldo_akhir'] += $jumlah;
         }
@@ -81,13 +84,11 @@ try {
     $jurnal_result = $stmt_jurnal->get_result();
     while ($jurnal_line = $jurnal_result->fetch_assoc()) {
         if (isset($accounts[$jurnal_line['account_id']])) {
-            $account = &$accounts[$jurnal_line['account_id']];
-            if ($account['saldo_normal'] === 'Debit') {
-                // Untuk Aset & Beban: saldo bertambah oleh debit, berkurang oleh kredit
-                $account['saldo_akhir'] += (float)$jurnal_line['debit'] - (float)$jurnal_line['kredit'];
+            $current_account = &$accounts[$jurnal_line['account_id']];
+            if ($current_account['saldo_normal'] === 'Debit') {
+                $current_account['saldo_akhir'] += (float)$jurnal_line['debit'] - (float)$jurnal_line['kredit'];
             } else { // Saldo Normal adalah Kredit
-                // Untuk Liabilitas, Ekuitas, Pendapatan: saldo bertambah oleh kredit, berkurang oleh debit
-                $account['saldo_akhir'] += (float)$jurnal_line['kredit'] - (float)$jurnal_line['debit'];
+                $current_account['saldo_akhir'] += (float)$jurnal_line['kredit'] - (float)$jurnal_line['debit'];
             }
         }
     }
@@ -107,12 +108,12 @@ try {
 
     // 5. Buat akun virtual untuk Laba Rugi Berjalan dan tambahkan ke Ekuitas
     $accounts['laba_rugi_virtual'] = [
-        'id' => 'laba_rugi_virtual', 'parent_id' => 300, 'kode_akun' => '3-9999', // Parent ID 300 adalah root Ekuitas
+        'id' => 'laba_rugi_virtual', 'parent_id' => 300, 'kode_akun' => '3-9999',
         'nama_akun' => 'Laba (Rugi) Periode Berjalan', 'tipe_akun' => 'Ekuitas',
         'saldo_akhir' => $laba_rugi_berjalan
     ];
 
-    // Filter hanya akun Neraca untuk dikirim ke frontend
+    // Filter hanya akun Neraca untuk dikirim
     $neraca_accounts = array_filter($accounts, function($acc) {
         return in_array($acc['tipe_akun'], ['Aset', 'Liabilitas', 'Ekuitas']);
     });
@@ -123,4 +124,3 @@ try {
     http_response_code(500);
     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }
-?>

@@ -29,9 +29,10 @@ if (!$is_spa_request) {
             </div>
             <div class="col-md-2">
                 <select id="filter-jurnal-limit" class="form-select">
-                    <option value="15">15 per halaman</option>
-                    <option value="30">30 per halaman</option>
-                    <option value="50">50 per halaman</option>
+                    <option value="10">10</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="-1">Semua</option>
                 </select>
             </div>
         </div>

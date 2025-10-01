@@ -17,6 +17,10 @@ $tahun = (int)($_GET['tahun'] ?? date('Y'));
 try {
     $response_data = [];
 
+    // 0. Ambil status keseimbangan Neraca untuk hari ini
+    // Menggunakan fungsi baru yang aman dari includes/functions.php
+    $response_data['balance_status'] = get_balance_sheet_status($conn, $user_id, date('Y-m-d'));
+
     // 1. Total Saldo Kas (fungsi sudah ada di functions.php)
     $response_data['total_saldo'] = get_cash_balance_on_date($conn, $user_id, date('Y-m-d'));
 
@@ -110,6 +114,62 @@ try {
     $response_data['pengeluaran_per_kategori'] = [
         'labels' => array_keys($expense_summary),
         'data' => array_values($expense_summary)
+    ];
+
+    // 5. Data untuk Grafik Tren Laba/Rugi 30 Hari
+    $end_date_30 = date('Y-m-d');
+    $start_date_30 = date('Y-m-d', strtotime('-29 days')); // 30 hari termasuk hari ini
+
+    $daily_profits = [];
+    // Inisialisasi semua hari dengan laba 0
+    $period = new DatePeriod(
+        new DateTime($start_date_30),
+        new DateInterval('P1D'),
+        (new DateTime($end_date_30))->modify('+1 day')
+    );
+    foreach ($period as $date) {
+        $daily_profits[$date->format('Y-m-d')] = 0;
+    }
+
+    // Ambil laba/rugi dari transaksi sederhana
+    $stmt_trx_30 = $conn->prepare("
+        SELECT tanggal, SUM(CASE WHEN jenis = 'pemasukan' THEN jumlah ELSE -jumlah END) as profit
+        FROM transaksi
+        WHERE user_id = ? AND tanggal BETWEEN ? AND ? AND jenis IN ('pemasukan', 'pengeluaran')
+        GROUP BY tanggal
+    ");
+    $stmt_trx_30->bind_param('iss', $user_id, $start_date_30, $end_date_30);
+    $stmt_trx_30->execute();
+    $trx_30_result = $stmt_trx_30->get_result();
+    while ($row = $trx_30_result->fetch_assoc()) {
+        if (isset($daily_profits[$row['tanggal']])) {
+            $daily_profits[$row['tanggal']] += (float)$row['profit'];
+        }
+    }
+    $stmt_trx_30->close();
+
+    // Ambil laba/rugi dari jurnal umum
+    $stmt_jurnal_30 = $conn->prepare("
+        SELECT je.tanggal, SUM(CASE WHEN a.tipe_akun = 'Pendapatan' THEN jd.kredit - jd.debit WHEN a.tipe_akun = 'Beban' THEN jd.debit - jd.kredit ELSE 0 END) as profit
+        FROM jurnal_details jd
+        JOIN jurnal_entries je ON jd.jurnal_entry_id = je.id
+        JOIN accounts a ON jd.account_id = a.id
+        WHERE je.user_id = ? AND je.tanggal BETWEEN ? AND ? AND a.tipe_akun IN ('Pendapatan', 'Beban')
+        GROUP BY je.tanggal
+    ");
+    $stmt_jurnal_30->bind_param('iss', $user_id, $start_date_30, $end_date_30);
+    $stmt_jurnal_30->execute();
+    $jurnal_30_result = $stmt_jurnal_30->get_result();
+    while ($row = $jurnal_30_result->fetch_assoc()) {
+        if (isset($daily_profits[$row['tanggal']])) {
+            $daily_profits[$row['tanggal']] += (float)$row['profit'];
+        }
+    }
+    $stmt_jurnal_30->close();
+
+    $response_data['laba_rugi_harian'] = [
+        'labels' => array_keys($daily_profits),
+        'data' => array_values($daily_profits)
     ];
 
     echo json_encode(['status' => 'success', 'data' => $response_data]);
