@@ -64,6 +64,9 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/entri-jurnal') ?>"><i class="bi bi-journal-plus"></i> Entri Jurnal</a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/konsinyasi') ?>"><i class="bi bi-box-seam"></i> Konsinyasi</a>
+        </li>
 
         <!-- Laporan & Analisis -->
         <li class="sidebar-header">Laporan & Analisis</li>
@@ -94,6 +97,14 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/settings') ?>"><i class="bi bi-gear-fill"></i> Pengaturan</a>
         </li>
+
+        <!-- Menu Khusus Admin -->
+        <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+        <li class="sidebar-header">Administrasi</li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/users') ?>"><i class="bi bi-people-fill"></i> Manajemen Pengguna</a>
+        </li>
+        <?php endif; ?>
     </ul>
 </div>
 <div class="sidebar-overlay"></div>

@@ -8,6 +8,15 @@ if (!$is_spa_request) {
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="bi bi-list-ol"></i> Daftar Entri Jurnal</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-download"></i> Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="#" id="export-dj-pdf"><i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>Cetak PDF</a></li>
+                <li><a class="dropdown-item" href="#" id="export-dj-csv"><i class="bi bi-file-earmark-spreadsheet-fill text-success me-2"></i>Export CSV</a></li>
+            </ul>
+        </div>
         <a href="<?= base_url('/entri-jurnal') ?>" class="btn btn-primary">
             <i class="bi bi-plus-circle-fill"></i> Buat Entri Jurnal Baru
         </a>
@@ -45,10 +54,13 @@ if (!$is_spa_request) {
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>ID Jurnal</th>
+                        <th>No. Referensi</th>
                         <th>Tanggal</th>
                         <th>Keterangan</th>
-                        <th class="text-end">Total</th>
+                        <th>Akun</th>
+                        <th class="text-end">Debit</th>
+                        <th class="text-end">Kredit</th>
+                        <th>User</th>
                         <th class="text-end">Aksi</th>
                     </tr>
                 </thead>

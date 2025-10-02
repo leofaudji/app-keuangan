@@ -210,6 +210,14 @@ function runPageScripts(path) {
         initSettingsPage();
     } else if (cleanPath === '/my-profile/change-password') {
         initMyProfilePage();
+    } else if (cleanPath === '/daftar-jurnal') {
+        initDaftarJurnalPage();
+    } else if (cleanPath === '/anggaran') {
+        initAnggaranPage();
+    } else if (cleanPath === '/konsinyasi') {
+        initKonsinyasiPage();
+    } else if (cleanPath === '/users') {
+        initUsersPage();
     }
 }
 
@@ -397,8 +405,8 @@ function initDashboardPage() {
 
                 // Tambahkan event listener untuk membuka modal detail
                 balanceCard.onclick = () => {
-                    const detailModalEl = document.getElementById('detailModal');
-                    const detailModal = new bootstrap.Modal(detailModalEl);
+                    const detailModalEl = document.getElementById('detailModal');                    
+                    const detailModal = bootstrap.Modal.getInstance(detailModalEl) || new bootstrap.Modal(detailModalEl);
                     document.getElementById('detailModalLabel').textContent = 'Detail Ketidakseimbangan Neraca';
                     const modalBody = document.getElementById('detailModalBody');
 
@@ -464,12 +472,12 @@ function initDashboardPage() {
             txWidget.innerHTML = '';
             if (data.transaksi_terbaru.length > 0) {
                 data.transaksi_terbaru.forEach(tx => {
-                    const isIncome = tx.jenis === 'pemasukan';
+                    const isIncome = tx.ref_type === 'transaksi' && tx.keterangan.toLowerCase().includes('penjualan'); // Heuristik sederhana
                     const row = `
                         <tr>
                             <td>${new Date(tx.tanggal).toLocaleDateString('id-ID', {day:'2-digit', month:'short'})}</td>
                             <td>${tx.keterangan}</td>
-                            <td class="text-end ${isIncome ? 'text-success' : 'text-danger'}">${currencyFormatter.format(tx.jumlah)}</td>
+                            <td class="text-end">${currencyFormatter.format(tx.jumlah)}</td>
                         </tr>
                     `;
                     txWidget.insertAdjacentHTML('beforeend', row);
@@ -544,7 +552,7 @@ function initTransaksiPage() {
     const tableBody = document.getElementById('transaksi-table-body');
     const modalEl = document.getElementById('transaksiModal');
     const jurnalDetailModalEl = document.getElementById('jurnalDetailModal');
-    const modal = new bootstrap.Modal(modalEl);
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     const form = document.getElementById('transaksi-form');
 
     // Cek jika URL memiliki hash '#add', buka modal secara otomatis
@@ -711,6 +719,37 @@ function initTransaksiPage() {
         });
     }
 
+    // Menambahkan fungsionalitas 'Enter' untuk pindah field
+    if (modalEl) {
+        modalEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                e.preventDefault(); // Mencegah form tersubmit
+
+                // Dapatkan semua elemen yang bisa difokuskan dan terlihat di dalam form
+                const focusableElements = Array.from(
+                    form.querySelectorAll(
+                        'input:not([type="hidden"]):not(:disabled), select:not(:disabled), textarea:not(:disabled)'
+                    )
+                ).filter(el => el.offsetParent !== null); // Filter hanya yang terlihat
+
+                const currentIndex = focusableElements.indexOf(document.activeElement);
+                const nextIndex = currentIndex + 1;
+
+                if (nextIndex < focusableElements.length) {
+                    // Pindah ke elemen berikutnya
+                    focusableElements[nextIndex].focus();
+                } else {
+                    // Jika sudah di elemen terakhir, klik tombol simpan
+                    const saveBtn = document.getElementById('save-transaksi-btn');
+                    if (saveBtn) {
+                        saveBtn.click();
+                    }
+                }
+            }
+        });
+    }
+
+
     saveBtn.addEventListener('click', async () => {
         if (!form.checkValidity()) {
             form.classList.add('was-validated');
@@ -728,9 +767,22 @@ function initTransaksiPage() {
             const response = await fetch(`${basePath}/api/transaksi`, { method: 'POST', body: formData });
             const result = await response.json();
             showToast(result.message, result.status === 'success' ? 'success' : 'error');
+
             if (result.status === 'success') {
-                modal.hide();
-                loadTransaksi(1); // Kembali ke halaman pertama setelah menambah data
+                const action = formData.get('action');
+                loadTransaksi(1); // Selalu refresh tabel di latar belakang
+
+                if (action === 'add') {
+                    // Untuk 'add', jangan tutup modal, tapi reset form untuk entri baru
+                    form.reset();
+                    form.classList.remove('was-validated');
+                    document.getElementById('tanggal').valueAsDate = new Date();
+                    // Kembalikan ke jenis transaksi default (misal: pengeluaran)
+                    jenisBtnGroup.querySelector('button[data-value="pengeluaran"]').click();
+                } else {
+                    // Untuk 'update', tutup modal seperti biasa
+                    modal.hide();
+                }
             }
         } catch (error) {
             showToast('Terjadi kesalahan jaringan.', 'error');
@@ -788,7 +840,7 @@ function initTransaksiPage() {
 
         if (viewJournalBtn) {
             const id = viewJournalBtn.dataset.id;
-            const jurnalModal = new bootstrap.Modal(jurnalDetailModalEl);
+            const jurnalModal = bootstrap.Modal.getInstance(jurnalDetailModalEl) || new bootstrap.Modal(jurnalDetailModalEl);
             const modalBody = document.getElementById('jurnal-detail-body');
             modalBody.innerHTML = '<div class="text-center p-4"><div class="spinner-border"></div></div>';
             jurnalModal.show();
@@ -876,7 +928,7 @@ function initTransaksiPage() {
 function initCoaPage() {
     const treeContainer = document.getElementById('coa-tree-container');
     const modalEl = document.getElementById('coaModal');
-    const modal = new bootstrap.Modal(modalEl);
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     const form = document.getElementById('coa-form');
     const saveBtn = document.getElementById('save-coa-btn');
 
@@ -1041,6 +1093,10 @@ function initLaporanPage() {
     const labaRugiContent = document.getElementById('laba-rugi-content');
     const labaRugiTglMulai = document.getElementById('laba-rugi-tanggal-mulai');
     const labaRugiTglAkhir = document.getElementById('laba-rugi-tanggal-akhir');
+    const lrCompareSwitch = document.getElementById('lr-compare-switch');
+    const lrPeriod2Container = document.getElementById('lr-period-2');
+    const labaRugiTglMulai2 = document.getElementById('laba-rugi-tanggal-mulai-2');
+    const labaRugiTglAkhir2 = document.getElementById('laba-rugi-tanggal-akhir-2');
     const arusKasTab = document.getElementById('arus-kas-tab');
     const arusKasContent = document.getElementById('arus-kas-content');
     const arusKasTglMulai = document.getElementById('arus-kas-tanggal-mulai');
@@ -1082,6 +1138,13 @@ function initLaporanPage() {
 
         labaRugiTglMulai.value = savedFilters.lr_start || firstDay;
         labaRugiTglAkhir.value = savedFilters.lr_end || lastDay;
+        
+        // Set default comparison period to previous month
+        const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const firstDayPrevMonth = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), 1).toISOString().split('T')[0];
+        const lastDayPrevMonth = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0).toISOString().split('T')[0];
+        labaRugiTglMulai2.value = savedFilters.lr_start2 || firstDayPrevMonth;
+        labaRugiTglAkhir2.value = savedFilters.lr_end2 || lastDayPrevMonth;
 
         arusKasTglMulai.value = savedFilters.ak_start || firstDay;
         arusKasTglAkhir.value = savedFilters.ak_end || lastDay;
@@ -1195,44 +1258,101 @@ function initLaporanPage() {
 
     function renderLabaRugi(data) {
         labaRugiContent.innerHTML = '';
-        const { pendapatan, beban, summary } = data;
+        const { current, previous } = data;
+        const isComparison = !!previous;
 
-        const renderRows = (items) => {
+        // Gabungkan semua akun dari kedua periode untuk membuat template tabel
+        const allAccounts = new Map();
+        [...(current.pendapatan || []), ...(current.beban || []), ...(previous?.pendapatan || []), ...(previous?.beban || [])].forEach(acc => {
+            if (!allAccounts.has(acc.id)) {
+                allAccounts.set(acc.id, { id: acc.id, nama_akun: acc.nama_akun, tipe_akun: acc.tipe_akun });
+            }
+        });
+
+        const findAccountTotal = (periodData, accountId) => {
+            const acc = [...(periodData.pendapatan || []), ...(periodData.beban || [])].find(a => a.id === accountId);
+            return acc ? acc.total : 0;
+        };
+
+        const calculateChange = (currentVal, prevVal) => {
+            if (prevVal === 0) return currentVal > 0 ? '<span class="text-success">Baru</span>' : '-';
+            const change = ((currentVal - prevVal) / Math.abs(prevVal)) * 100;
+            const color = change >= 0 ? 'text-success' : 'text-danger';
+            const icon = change >= 0 ? '<i class="bi bi-arrow-up"></i>' : '<i class="bi bi-arrow-down"></i>';
+            return `<span class="${color}">${icon} ${Math.abs(change).toFixed(1)}%</span>`;
+        };
+
+        const renderRows = (tipe) => {
             let html = '';
-            if (!items || items.length === 0) return '<tr><td colspan="2" class="text-muted">Tidak ada data.</td></tr>';
-            items.forEach(item => {
-                html += `<tr><td>${item.nama_akun}</td><td class="text-end">${formatCurrencyAccounting(item.total)}</td></tr>`;
+            const accountsOfType = Array.from(allAccounts.values()).filter(acc => acc.tipe_akun === tipe);
+            if (accountsOfType.length === 0) return `<tr><td colspan="${isComparison ? 4 : 2}" class="text-muted">Tidak ada data.</td></tr>`;
+
+            accountsOfType.forEach(acc => {
+                const currentTotal = findAccountTotal(current, acc.id);
+                html += `<tr><td>${acc.nama_akun}</td><td class="text-end">${formatCurrencyAccounting(currentTotal)}</td>`;
+                if (isComparison) {
+                    const prevTotal = findAccountTotal(previous, acc.id);
+                    html += `<td class="text-end">${formatCurrencyAccounting(prevTotal)}</td>`;
+                    html += `<td class="text-end small">${calculateChange(currentTotal, prevTotal)}</td>`;
+                }
+                html += `</tr>`;
             });
             return html;
         };
 
         const labaRugiHtml = `
-            <h5 class="mt-3">Pendapatan</h5>
-            <table class="table table-sm"><tbody>${renderRows(pendapatan)}</tbody></table>
-            <table class="table"><tbody><tr class="table-light"><td class="fw-bold">TOTAL PENDAPATAN</td><td class="text-end fw-bold">${formatCurrencyAccounting(summary.total_pendapatan)}</td></tr></tbody></table>
-
-            <h5 class="mt-4">Beban</h5>
-            <table class="table table-sm"><tbody>${renderRows(beban)}</tbody></table>
-            <table class="table"><tbody><tr class="table-light"><td class="fw-bold">TOTAL BEBAN</td><td class="text-end fw-bold">${formatCurrencyAccounting(summary.total_beban)}</td></tr></tbody></table>
-
-            <table class="table mt-4">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Keterangan</th>
+                        <th class="text-end">Periode Saat Ini</th>
+                        ${isComparison ? '<th class="text-end">Periode Pembanding</th><th class="text-end">Perubahan</th>' : ''}
+                    </tr>
+                </thead>
                 <tbody>
-                    <tr class="${summary.laba_bersih >= 0 ? 'table-success' : 'table-danger'}">
-                        <td class="fw-bold fs-5">LABA (RUGI) BERSIH</td>
-                        <td class="text-end fw-bold fs-5">${formatCurrencyAccounting(summary.laba_bersih)}</td>
+                    <tr class="table-light"><td colspan="${isComparison ? 4 : 2}" class="fw-bold">Pendapatan</td></tr>
+                    ${renderRows('Pendapatan')}
+                    <tr class="table-light">
+                        <td class="fw-bold">TOTAL PENDAPATAN</td>
+                        <td class="text-end fw-bold">${formatCurrencyAccounting(current.summary.total_pendapatan)}</td>
+                        ${isComparison ? `<td class="text-end fw-bold">${formatCurrencyAccounting(previous.summary.total_pendapatan)}</td><td class="text-end small">${calculateChange(current.summary.total_pendapatan, previous.summary.total_pendapatan)}</td>` : ''}
+                    </tr>
+                    
+                    <tr class="table-light"><td colspan="${isComparison ? 4 : 2}" class="fw-bold pt-4">Beban</td></tr>
+                    ${renderRows('Beban')}
+                    <tr class="table-light">
+                        <td class="fw-bold">TOTAL BEBAN</td>
+                        <td class="text-end fw-bold">${formatCurrencyAccounting(current.summary.total_beban)}</td>
+                        ${isComparison ? `<td class="text-end fw-bold">${formatCurrencyAccounting(previous.summary.total_beban)}</td><td class="text-end small">${calculateChange(current.summary.total_beban, previous.summary.total_beban)}</td>` : ''}
                     </tr>
                 </tbody>
+                <tfoot class="table-group-divider">
+                    <tr class="${current.summary.laba_bersih >= 0 ? 'table-success' : 'table-danger'}">
+                        <td class="fw-bold fs-5">LABA (RUGI) BERSIH</td>
+                        <td class="text-end fw-bold fs-5">${formatCurrencyAccounting(current.summary.laba_bersih)}</td>
+                        ${isComparison ? `<td class="text-end fw-bold fs-5">${formatCurrencyAccounting(previous.summary.laba_bersih)}</td><td class="text-end small">${calculateChange(current.summary.laba_bersih, previous.summary.laba_bersih)}</td>` : ''}
+                    </tr>
+                </tfoot>
             </table>
         `;
         labaRugiContent.innerHTML = labaRugiHtml;
     }
 
     async function loadLabaRugi() {
-        const startDate = labaRugiTglMulai.value;
-        const endDate = labaRugiTglAkhir.value;
+        const params = new URLSearchParams({
+            start: labaRugiTglMulai.value,
+            end: labaRugiTglAkhir.value
+        });
+
+        if (lrCompareSwitch.checked) {
+            params.append('compare', 'true');
+            params.append('start2', labaRugiTglMulai2.value);
+            params.append('end2', labaRugiTglAkhir2.value);
+        }
+
         labaRugiContent.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
         try {
-            const response = await fetch(`${basePath}/api/laporan/laba-rugi?start=${startDate}&end=${endDate}`);
+            const response = await fetch(`${basePath}/api/laporan/laba-rugi?${params.toString()}`);
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message);
             renderLabaRugi(result.data);
@@ -1295,7 +1415,7 @@ function initLaporanPage() {
                         <td>Saldo Kas pada Akhir Periode</td>
                         <td class="text-end">${formatCurrencyAccounting(saldo_kas_akhir_terhitung)}</td>
                     </tr>
-                </tfoot>
+                </tbody>
             </table>
         `;
         arusKasContent.innerHTML = arusKasHtml;
@@ -1333,92 +1453,62 @@ function initLaporanPage() {
     const handleArusKasChange = () => { saveFilters(); loadArusKas(); };
 
     neracaTanggalInput.addEventListener('change', handleNeracaChange);
-
-    // Event listener untuk tab Laba Rugi
-    if (labaRugiTab) {
-        labaRugiTab.addEventListener('shown.bs.tab', () => {
-            // Hanya load data jika tab aktif, jangan save filter di sini
-            if (document.getElementById('laba-rugi-pane').classList.contains('active')) {
-                loadLabaRugi();
-            }
-        });
-    }
+    labaRugiTab?.addEventListener('shown.bs.tab', loadLabaRugi);
     labaRugiTglMulai.addEventListener('change', handleLabaRugiChange);
     labaRugiTglAkhir.addEventListener('change', handleLabaRugiChange);
-
-    // Event listener untuk tab Arus Kas
-    if (arusKasTab) {
-        arusKasTab.addEventListener('shown.bs.tab', loadArusKas);
-    }
+    lrCompareSwitch.addEventListener('change', () => {
+        lrPeriod2Container.classList.toggle('d-none', !lrCompareSwitch.checked);
+        handleLabaRugiChange();
+    });
+    arusKasTab?.addEventListener('shown.bs.tab', loadArusKas);
     arusKasTglMulai.addEventListener('change', handleArusKasChange);
     arusKasTglAkhir.addEventListener('change', handleArusKasChange);
 
     // --- Event Listeners untuk Export ---
 
-    // Fungsi helper untuk cetak via browser
-    const printReport = (elementToPrint, titleText) => {
-        // Cari elemen .card terdekat yang membungkus konten laporan
-        const reportCard = elementToPrint.closest('.card');
-        if (!reportCard) {
-            showToast('Area laporan tidak ditemukan untuk dicetak.', 'error');
-            return;
-        }
- 
-        // 1. Buat header laporan dan sisipkan di bagian atas card
-        const printHeader = document.createElement('div');
-        printHeader.className = 'print-only-header';
-        printHeader.innerHTML = `<h3>${titleText}</h3>`;
-        reportCard.prepend(printHeader);
- 
-        // 2. Tambahkan class 'is-printing' ke body dan 'print-area' ke card
-        document.body.classList.add('is-printing');
-        reportCard.classList.add('print-area');
- 
-        // 3. Panggil dialog cetak browser
-        window.print();
- 
-        // 4. Setelah cetak (atau dibatalkan), bersihkan semuanya
-        // Event 'afterprint' memastikan ini berjalan setelah dialog cetak ditutup
-        const cleanup = () => {
-            document.body.classList.remove('is-printing');
-            reportCard.classList.remove('print-area');
-            printHeader.remove();
-            window.removeEventListener('afterprint', cleanup);
-        };
-        window.addEventListener('afterprint', cleanup);
-    };
-
-    // Event listener untuk tombol PDF (sekarang menggunakan print browser)
+    // Event listener untuk tombol PDF (sekarang menggunakan FPDF handler)
     exportNeracaPdfBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        const tanggal = new Date(neracaTanggalInput.value).toLocaleDateString('id-ID', { dateStyle: 'long' });
-        printReport(neracaContent, `Laporan Posisi Keuangan (Neraca) per ${tanggal}`);
+        const url = `${basePath}/api/laporan_cetak_handler.php?report=neraca&tanggal=${neracaTanggalInput.value}`;
+        window.open(url, '_blank');
     });
 
     exportLrPdfBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        const periode = `Periode ${new Date(labaRugiTglMulai.value).toLocaleDateString('id-ID')} s/d ${new Date(labaRugiTglAkhir.value).toLocaleDateString('id-ID')}`;
-        printReport(labaRugiContent, `Laporan Laba Rugi ${periode}`);
+        const params = new URLSearchParams({ report: 'laba-rugi', start: labaRugiTglMulai.value, end: labaRugiTglAkhir.value });
+        if (lrCompareSwitch.checked) {
+            params.append('compare', 'true');
+            params.append('start2', labaRugiTglMulai2.value);
+            params.append('end2', labaRugiTglAkhir2.value);
+        }
+        const url = `${basePath}/api/laporan_cetak_handler.php?${params.toString()}`;
+        window.open(url, '_blank');
     });
 
     exportAkPdfBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        const periode = `Periode ${new Date(arusKasTglMulai.value).toLocaleDateString('id-ID')} s/d ${new Date(arusKasTglAkhir.value).toLocaleDateString('id-ID')}`;
-        printReport(arusKasContent, `Laporan Arus Kas ${periode}`);
+        const url = `${basePath}/api/laporan_cetak_handler.php?report=arus-kas&start=${arusKasTglMulai.value}&end=${arusKasTglAkhir.value}`;
+        window.open(url, '_blank');
     });
 
     // Event listener untuk tombol CSV (tetap sama)
     exportNeracaCsvBtn?.addEventListener('click', (e) => {
             e.preventDefault();
-            window.open(`${basePath}/api/laporan/cetak?report=neraca&format=csv&tanggal=${neracaTanggalInput.value}`, '_blank');
+            window.open(`${basePath}/api/laporan_cetak_csv_handler.php?report=neraca&format=csv&tanggal=${neracaTanggalInput.value}`, '_blank');
     });
     exportLrCsvBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-            window.open(`${basePath}/api/laporan/cetak?report=laba-rugi&format=csv&start=${labaRugiTglMulai.value}&end=${labaRugiTglAkhir.value}`, '_blank');
+            const params = new URLSearchParams({ report: 'laba-rugi', format: 'csv', start: labaRugiTglMulai.value, end: labaRugiTglAkhir.value });
+            if (lrCompareSwitch.checked) {
+                params.append('compare', 'true');
+                params.append('start2', labaRugiTglMulai2.value);
+                params.append('end2', labaRugiTglAkhir2.value);
+            }
+            window.open(`${basePath}/api/laporan_cetak_csv_handler.php?${params.toString()}`, '_blank');
     });
     exportAkCsvBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-            window.open(`${basePath}/api/laporan/cetak?report=arus-kas&format=csv&start=${arusKasTglMulai.value}&end=${arusKasTglAkhir.value}`, '_blank');
+            window.open(`${basePath}/api/laporan_cetak_csv_handler.php?report=arus-kas&format=csv&start=${arusKasTglMulai.value}&end=${arusKasTglAkhir.value}`, '_blank');
     });
 
     // Initial Load
@@ -1494,14 +1584,8 @@ function initLaporanHarianPage() {
                     datasets: [{
                         label: 'Jumlah',
                         data: [total_pemasukan, total_pengeluaran],
-                        backgroundColor: [
-                            'rgba(25, 135, 84, 0.7)', // Success
-                            'rgba(220, 53, 69, 0.7)'  // Danger
-                        ],
-                        borderColor: [
-                            'rgba(25, 135, 84, 1)',
-                            'rgba(220, 53, 69, 1)'
-                        ],
+                        backgroundColor: ['rgba(25, 135, 84, 0.7)', 'rgba(220, 53, 69, 0.7)'],
+                        borderColor: ['rgba(25, 135, 84, 1)', 'rgba(220, 53, 69, 1)'],
                         borderWidth: 1
                     }]
                 },
@@ -1528,30 +1612,16 @@ function initLaporanHarianPage() {
 
             if (transaksi.length > 0) {
                 transaksi.forEach(tx => {
-                    let pemasukan = 0, pengeluaran = 0;
-                    let akunTerkait = '';
-                    let idHtml = '';
-
-                    if (tx.source === 'transaksi') {
-                        const idDisplay = tx.nomor_referensi || `TRX-${tx.id}`;
-                        idHtml = `<a href="#" class="view-detail-btn" data-type="transaksi" data-id="${tx.id}">${idDisplay}</a>`;
-                        if (tx.jenis === 'pemasukan') { pemasukan = tx.jumlah; akunTerkait = tx.akun_utama; }
-                        if (tx.jenis === 'pengeluaran') { pengeluaran = tx.jumlah; akunTerkait = tx.akun_utama; }
-                        if (tx.jenis === 'transfer') { akunTerkait = `Dari: ${tx.akun_kas}<br>Ke: ${tx.akun_tujuan}`; }
-                    } else { // Jurnal
-                        const idDisplay = `JRN-${String(tx.id).padStart(5, '0')}`;
-                        idHtml = `<a href="#" class="view-detail-btn" data-type="jurnal" data-id="${tx.id}">${idDisplay}</a>`;
-                        akunTerkait = '<i>Jurnal Umum</i>';
-                        // Untuk jurnal, kita hanya tampilkan totalnya di summary, bukan per baris
-                    }
+                    const idDisplay = tx.ref || `${tx.source.toUpperCase()}-${tx.id}`; // Gunakan ref jika ada
+                    const idHtml = `<a href="#" class="view-detail-btn" data-type="${tx.source}" data-id="${tx.id}">${idDisplay}</a>`;
 
                     tableHtml += `
                         <tr>
                             <td><small>${idHtml}</small></td>
                             <td>${tx.keterangan}</td>
-                            <td><small>${akunTerkait}</small></td>
-                            <td class="text-end text-success">${pemasukan > 0 ? currencyFormatter.format(pemasukan) : '-'}</td>
-                            <td class="text-end text-danger">${pengeluaran > 0 ? currencyFormatter.format(pengeluaran) : '-'}</td>
+                            <td><small>${tx.akun_terkait || '<i>N/A</i>'}</small></td>
+                            <td class="text-end text-success">${tx.pemasukan > 0 ? currencyFormatter.format(tx.pemasukan) : '-'}</td>
+                            <td class="text-end text-danger">${tx.pengeluaran > 0 ? currencyFormatter.format(tx.pengeluaran) : '-'}</td>
                         </tr>
                     `;
                 });
@@ -1579,6 +1649,17 @@ function initLaporanHarianPage() {
 
     tampilkanBtn.addEventListener('click', loadReport);
 
+    exportPdfBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const url = `${basePath}/api/laporan_cetak_handler.php?report=laporan-harian&tanggal=${tanggalInput.value}`;
+        window.open(url, '_blank');
+    });
+
+    exportCsvBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.open(`${basePath}/api/laporan_cetak_csv_handler.php?report=laporan-harian&format=csv&tanggal=${tanggalInput.value}`, '_blank');
+    });
+
     reportContent.addEventListener('click', async (e) => {
         const viewBtn = e.target.closest('.view-detail-btn');
         if (!viewBtn) return;
@@ -1587,7 +1668,7 @@ function initLaporanHarianPage() {
         const { type, id } = viewBtn.dataset;
 
         const detailModalEl = document.getElementById('detailModal');
-        const detailModal = new bootstrap.Modal(detailModalEl);
+        const detailModal = bootstrap.Modal.getInstance(detailModalEl) || new bootstrap.Modal(detailModalEl);
         const modalBody = document.getElementById('detailModalBody');
         const modalLabel = document.getElementById('detailModalLabel');
 
@@ -1638,6 +1719,464 @@ function initLaporanHarianPage() {
 
     // Initial load for today's report
     loadReport();
+}
+
+function initAnggaranPage() {
+    const yearFilter = document.getElementById('anggaran-tahun-filter');
+    const monthFilter = document.getElementById('anggaran-bulan-filter');
+    const reportTableBody = document.getElementById('anggaran-report-table-body');
+    const modalEl = document.getElementById('anggaranModal');
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    const modalTahunLabel = document.getElementById('modal-tahun-label');
+    const managementContainer = document.getElementById('anggaran-management-container');
+    const saveAnggaranBtn = document.getElementById('save-anggaran-btn');
+
+    if (!yearFilter || !reportTableBody) return;
+
+    const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+    function setupFilters() {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+
+        for (let i = 0; i < 5; i++) {
+            yearFilter.add(new Option(currentYear - i, currentYear - i));
+        }
+        const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        months.forEach((month, index) => {
+            monthFilter.add(new Option(month, index + 1));
+        });
+
+        yearFilter.value = currentYear;
+        monthFilter.value = currentMonth;
+    }
+
+    async function loadReport() {
+        const selectedYear = yearFilter.value;
+        const selectedMonth = monthFilter.value;
+        reportTableBody.innerHTML = '<tr><td colspan="5" class="text-center p-5"><div class="spinner-border"></div></td></tr>';
+        try {
+            const response = await fetch(`${basePath}/api/anggaran?action=get_report&tahun=${selectedYear}&bulan=${selectedMonth}`);
+            const result = await response.json();
+            reportTableBody.innerHTML = '';
+            if (result.status === 'success' && result.data.length > 0) {
+                result.data.forEach(item => {
+                    const percentage = parseFloat(item.persentase);
+                    let progressBarColor = 'bg-success';
+                    if (percentage > 75) progressBarColor = 'bg-warning';
+                    if (percentage > 95) progressBarColor = 'bg-danger';
+
+                    const row = `
+                        <tr>
+                            <td>${item.nama_akun}</td>
+                            <td class="text-end">${currencyFormatter.format(item.anggaran_bulanan)}</td>
+                            <td class="text-end">${currencyFormatter.format(item.realisasi_belanja)}</td>
+                            <td class="text-end fw-bold ${item.sisa_anggaran < 0 ? 'text-danger' : ''}">${currencyFormatter.format(item.sisa_anggaran)}</td>
+                            <td>
+                                <div class="progress" role="progressbar" style="height: 20px;">
+                                    <div class="progress-bar ${progressBarColor}" style="width: ${Math.min(percentage, 100)}%">${percentage.toFixed(1)}%</div>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    reportTableBody.insertAdjacentHTML('beforeend', row);
+                });
+            } else {
+                reportTableBody.innerHTML = '<tr><td colspan="5" class="text-center">Belum ada data anggaran untuk periode ini.</td></tr>';
+            }
+        } catch (error) {
+            reportTableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Gagal memuat laporan: ${error.message}</td></tr>`;
+        }
+    }
+
+    async function loadBudgetManagement() {
+        const selectedYear = yearFilter.value;
+        modalTahunLabel.textContent = selectedYear;
+        managementContainer.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
+        try {
+            const response = await fetch(`${basePath}/api/anggaran?action=list_budget&tahun=${selectedYear}`);
+            const result = await response.json();
+            managementContainer.innerHTML = '';
+            if (result.status === 'success' && result.data.length > 0) {
+                result.data.forEach(item => {
+                    const itemHtml = `
+                        <div class="input-group mb-2">
+                            <span class="input-group-text" style="width: 200px;">${item.nama_akun}</span>
+                            <input type="number" class="form-control budget-amount-input" name="budgets[${item.account_id}]" value="${item.jumlah_anggaran}" placeholder="Anggaran Tahunan">
+                        </div>
+                    `;
+                    managementContainer.insertAdjacentHTML('beforeend', itemHtml);
+                });
+            } else {
+                managementContainer.innerHTML = '<p class="text-muted text-center">Tidak ada akun beban yang dapat dianggarkan.</p>';
+            }
+        } catch (error) {
+            managementContainer.innerHTML = `<div class="alert alert-danger">Gagal memuat data anggaran.</div>`;
+        }
+    }
+
+    saveAnggaranBtn.addEventListener('click', async () => {
+        const form = document.getElementById('anggaran-management-form');
+        const formData = new FormData(form);
+        formData.append('action', 'save_budgets');
+        formData.append('tahun', yearFilter.value);
+
+        const response = await fetch(`${basePath}/api/anggaran`, { method: 'POST', body: formData });
+        const result = await response.json();
+        showToast(result.message, result.status === 'success' ? 'success' : 'error');
+        if (result.status === 'success') modal.hide();
+    });
+
+    yearFilter.addEventListener('change', loadReport);
+    monthFilter.addEventListener('change', loadReport);
+    modalEl.addEventListener('show.bs.modal', loadBudgetManagement);
+    modalEl.addEventListener('hidden.bs.modal', loadReport);
+
+    setupFilters();
+    loadReport();
+}
+
+function initKonsinyasiPage() {
+    // --- Element Selectors ---
+    const supplierTableBody = document.getElementById('suppliers-table-body');
+    const itemTableBody = document.getElementById('items-table-body');
+    const supplierModalEl = document.getElementById('supplierModal');
+    const itemModalEl = document.getElementById('itemModal');
+    const saleForm = document.getElementById('consignment-sale-form');
+    const reportLink = document.getElementById('view-consignment-report-link');
+    const reportModalEl = document.getElementById('consignmentReportModal');
+
+    if (!supplierTableBody || !itemTableBody) return;
+
+    const supplierModal = new bootstrap.Modal(supplierModalEl);
+    const itemModal = new bootstrap.Modal(itemModalEl);
+    const reportModal = new bootstrap.Modal(reportModalEl);
+
+    const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+    // --- Load Functions ---
+    async function loadSuppliers() {
+        supplierTableBody.innerHTML = '<tr><td colspan="3" class="text-center p-4"><div class="spinner-border spinner-border-sm"></div></td></tr>';
+        const response = await fetch(`${basePath}/api/konsinyasi?action=list_suppliers`);
+        const result = await response.json();
+        supplierTableBody.innerHTML = '';
+        if (result.status === 'success' && result.data.length > 0) {
+            result.data.forEach(s => {
+                supplierTableBody.innerHTML += `<tr><td>${s.nama_pemasok}</td><td>${s.kontak || '-'}</td><td class="text-end"><button class="btn btn-sm btn-info edit-supplier-btn" data-id="${s.id}" data-nama="${s.nama_pemasok}" data-kontak="${s.kontak}"><i class="bi bi-pencil-fill"></i></button> <button class="btn btn-sm btn-danger delete-supplier-btn" data-id="${s.id}"><i class="bi bi-trash-fill"></i></button></td></tr>`;
+            });
+        } else {
+            supplierTableBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Belum ada pemasok.</td></tr>';
+        }
+    }
+
+    async function loadItems() {
+        itemTableBody.innerHTML = '<tr><td colspan="6" class="text-center p-4"><div class="spinner-border spinner-border-sm"></div></td></tr>';
+        const response = await fetch(`${basePath}/api/konsinyasi?action=list_items`);
+        const result = await response.json();
+        itemTableBody.innerHTML = '';
+        if (result.status === 'success' && result.data.length > 0) {
+            result.data.forEach(i => {
+                itemTableBody.innerHTML += `<tr><td>${i.nama_barang}</td><td>${i.nama_pemasok}</td><td class="text-end">${currencyFormatter.format(i.harga_jual)}</td><td class="text-end">${currencyFormatter.format(i.harga_beli)}</td><td class="text-end">${i.stok_saat_ini}</td><td class="text-end"><button class="btn btn-sm btn-info edit-item-btn" data-id="${i.id}"><i class="bi bi-pencil-fill"></i></button> <button class="btn btn-sm btn-danger delete-item-btn" data-id="${i.id}"><i class="bi bi-trash-fill"></i></button></td></tr>`;
+            });
+        } else {
+            itemTableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Belum ada barang konsinyasi.</td></tr>';
+        }
+    }
+
+    async function loadItemsForSale() {
+        const select = document.getElementById('cs-item-id');
+        select.innerHTML = '<option>Memuat...</option>';
+        const response = await fetch(`${basePath}/api/konsinyasi?action=list_items`);
+        const result = await response.json();
+        select.innerHTML = '<option value="">-- Pilih Barang --</option>';
+        if (result.status === 'success') {
+            result.data.forEach(i => {
+                if (i.stok_saat_ini > 0) {
+                    select.add(new Option(`${i.nama_barang} (Stok: ${i.stok_saat_ini})`, i.id));
+                }
+            });
+        }
+    }
+
+    // --- Event Listeners ---
+    document.getElementById('save-supplier-btn').addEventListener('click', async () => {
+        const form = document.getElementById('supplier-form');
+        const formData = new FormData(form);
+        formData.set('action', document.getElementById('supplier-action').value);
+        const response = await fetch(`${basePath}/api/konsinyasi`, { method: 'POST', body: formData });
+        const result = await response.json();
+        showToast(result.message, result.status);
+        if (result.status === 'success') { supplierModal.hide(); loadSuppliers(); }
+    });
+
+    document.getElementById('save-item-btn').addEventListener('click', async () => {
+        const form = document.getElementById('item-form');
+        const formData = new FormData(form);
+        formData.set('action', document.getElementById('item-action').value);
+        const response = await fetch(`${basePath}/api/konsinyasi`, { method: 'POST', body: formData });
+        const result = await response.json();
+        showToast(result.message, result.status);
+        if (result.status === 'success') { itemModal.hide(); loadItems(); loadItemsForSale(); }
+    });
+
+    saleForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // Ambil detail untuk pesan konfirmasi
+        const itemSelect = document.getElementById('cs-item-id');
+        const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+        const itemName = selectedOption ? selectedOption.text.split(' (Stok:')[0] : 'barang';
+        const qty = document.getElementById('cs-qty').value;
+
+        // Tampilkan dialog konfirmasi
+        if (!confirm(`Anda yakin ingin menjual ${qty} x ${itemName}?`)) {
+            return; // Hentikan proses jika pengguna menekan "Batal"
+        }
+
+        const formData = new FormData();
+        formData.append('action', 'sell_item');
+        formData.append('item_id', document.getElementById('cs-item-id').value);
+        formData.append('qty', document.getElementById('cs-qty').value);
+        formData.append('tanggal', document.getElementById('cs-tanggal').value);
+        
+        const response = await fetch(`${basePath}/api/konsinyasi`, { method: 'POST', body: formData });
+        const result = await response.json();
+        showToast(result.message, result.status);
+        if (result.status === 'success') {
+            saleForm.reset();
+            document.getElementById('cs-tanggal').valueAsDate = new Date();
+            loadItemsForSale();
+        }
+    });
+
+    reportLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const reportBody = document.getElementById('consignment-report-body');
+        reportBody.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
+        reportModal.show();
+        const response = await fetch(`${basePath}/api/konsinyasi?action=get_sales_report`);
+        const result = await response.json();
+        if (result.status === 'success') {
+            let html = '<table class="table table-sm"><thead><tr><th>Pemasok</th><th>Barang</th><th class="text-end">Terjual</th><th class="text-end">Harga Beli</th><th class="text-end">Total Utang</th></tr></thead><tbody>';
+            let totalUtangKeseluruhan = 0;
+            result.data.forEach(row => {
+                totalUtangKeseluruhan += parseFloat(row.total_utang);
+                html += `<tr><td>${row.nama_pemasok}</td><td>${row.nama_barang}</td><td class="text-end">${row.total_terjual}</td><td class="text-end">${currencyFormatter.format(row.harga_beli)}</td><td class="text-end">${currencyFormatter.format(row.total_utang)}</td></tr>`;
+            });
+            html += `</tbody><tfoot><tr class="table-light fw-bold"><td colspan="4" class="text-end">Total Utang Konsinyasi</td><td class="text-end">${currencyFormatter.format(totalUtangKeseluruhan)}</td></tr></tfoot></table>`;
+            reportBody.innerHTML = html;
+        } else {
+            reportBody.innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
+        }
+    });
+
+    document.getElementById('barang-tab').addEventListener('shown.bs.tab', () => {
+        loadItems();
+    });
+
+    // --- Modal & Table Delegation ---
+    supplierModalEl.addEventListener('show.bs.modal', (e) => {
+        const button = e.relatedTarget;
+        const form = document.getElementById('supplier-form');
+        form.reset();
+        if (button.dataset.action === 'add') {
+            document.getElementById('supplierModalLabel').textContent = 'Tambah Pemasok';
+            document.getElementById('supplier-action').value = 'save_supplier';
+        }
+    });
+
+    itemModalEl.addEventListener('show.bs.modal', async (e) => {
+        const button = e.relatedTarget;
+        const form = document.getElementById('item-form');
+        // form.reset(); // Reset is handled in the specific 'add' or 'edit' logic
+        // Populate supplier dropdown
+        const supplierSelect = document.getElementById('supplier_id');
+        supplierSelect.innerHTML = '<option>Memuat...</option>';
+        const response = await fetch(`${basePath}/api/konsinyasi?action=list_suppliers`);
+        const result = await response.json();
+        supplierSelect.innerHTML = '<option value="">-- Pilih Pemasok --</option>';
+        if (result.status === 'success') {
+            result.data.forEach(s => supplierSelect.add(new Option(s.nama_pemasok, s.id)));
+        }
+
+        if (button && button.dataset.action === 'add') {
+            form.reset();
+            document.getElementById('itemModalLabel').textContent = 'Tambah Barang Konsinyasi';
+            document.getElementById('item-action').value = 'save_item';
+            document.getElementById('tanggal_terima').valueAsDate = new Date();
+        }
+    });
+
+    document.getElementById('pemasok-pane').addEventListener('click', e => {
+        const editBtn = e.target.closest('.edit-supplier-btn');
+        if (editBtn) {
+            document.getElementById('supplierModalLabel').textContent = 'Edit Pemasok';
+            document.getElementById('supplier-action').value = 'save_supplier';
+            document.getElementById('supplier-id').value = editBtn.dataset.id;
+            document.getElementById('nama_pemasok').value = editBtn.dataset.nama;
+            document.getElementById('kontak').value = editBtn.dataset.kontak;
+            supplierModal.show();
+        }
+        const deleteBtn = e.target.closest('.delete-supplier-btn');
+        if (deleteBtn) {
+            if (confirm('Yakin ingin menghapus pemasok ini?')) {
+                const formData = new FormData();
+                formData.append('action', 'delete_supplier');
+                formData.append('id', deleteBtn.dataset.id);
+                fetch(`${basePath}/api/konsinyasi`, { method: 'POST', body: formData }).then(res => res.json()).then(result => {
+                    showToast(result.message, result.status);
+                    if (result.status === 'success') loadSuppliers();
+                });
+            }
+        }
+    });
+
+    document.getElementById('barang-pane').addEventListener('click', async e => {
+        const editBtn = e.target.closest('.edit-item-btn');
+        if (editBtn) {
+            const id = editBtn.dataset.id;
+            try {
+                const response = await fetch(`${basePath}/api/konsinyasi?action=get_single_item&id=${id}`);
+                const result = await response.json();
+                if (result.status !== 'success') throw new Error(result.message);
+                
+                const item = result.data;
+                await itemModalEl.querySelector('#supplier_id').dispatchEvent(new Event('show.bs.modal')); // Trigger supplier load
+                document.getElementById('itemModalLabel').textContent = 'Edit Barang Konsinyasi';
+                document.getElementById('item-action').value = 'save_item';
+                document.getElementById('item-id').value = item.id;
+                document.getElementById('supplier_id').value = item.supplier_id;
+                document.getElementById('nama_barang').value = item.nama_barang;
+                document.getElementById('harga_jual').value = item.harga_jual;
+                document.getElementById('harga_beli').value = item.harga_beli;
+                document.getElementById('stok_awal').value = item.stok_awal;
+                document.getElementById('tanggal_terima').value = item.tanggal_terima;
+                itemModal.show();
+            } catch (error) { showToast(`Gagal memuat data barang: ${error.message}`, 'error'); }
+        }
+    });
+
+    // --- Initial Load ---
+    loadSuppliers();
+    loadItems();
+    loadItemsForSale();
+    document.getElementById('cs-tanggal').valueAsDate = new Date();
+}
+
+function initUsersPage() {
+    const tableBody = document.getElementById('users-table-body');
+    const modalEl = document.getElementById('userModal');
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    const form = document.getElementById('user-form');
+    const saveBtn = document.getElementById('save-user-btn');
+
+    if (!tableBody) return;
+
+    async function loadUsers() {
+        tableBody.innerHTML = '<tr><td colspan="5" class="text-center p-5"><div class="spinner-border"></div></td></tr>';
+        try {
+            const response = await fetch(`${basePath}/api/users`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            tableBody.innerHTML = '';
+            if (result.data.length > 0) {
+                result.data.forEach((user, index) => {
+                    const row = `
+                        <tr>
+                            <td>${user.username}</td>
+                            <td>${user.nama_lengkap || '-'}</td>
+                            <td><span class="badge bg-primary">${user.role}</span></td>
+                            <td>${new Date(user.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' })}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-info edit-btn" data-id="${user.id}" title="Edit"><i class="bi bi-pencil-fill"></i></button>
+                                <button class="btn btn-sm btn-danger delete-btn" data-id="${user.id}" data-username="${user.username}" title="Hapus"><i class="bi bi-trash-fill"></i></button>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.insertAdjacentHTML('beforeend', row);
+                });
+            } else {
+                tableBody.innerHTML = '<tr><td colspan="5" class="text-center">Tidak ada pengguna ditemukan.</td></tr>';
+            }
+        } catch (error) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Gagal memuat data: ${error.message}</td></tr>`;
+        }
+    }
+
+    saveBtn.addEventListener('click', async () => {
+        const formData = new FormData(form);
+        const originalBtnHtml = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Menyimpan...`;
+
+        try {
+            const response = await fetch(`${basePath}/api/users`, { method: 'POST', body: formData });
+            const result = await response.json();
+            showToast(result.message, result.status === 'success' ? 'success' : 'error');
+            if (result.status === 'success') {
+                modal.hide();
+                loadUsers();
+            }
+        } catch (error) {
+            showToast('Terjadi kesalahan jaringan.', 'error');
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalBtnHtml;
+        }
+    });
+
+    tableBody.addEventListener('click', async (e) => {
+        const editBtn = e.target.closest('.edit-btn');
+        if (editBtn) {
+            const id = editBtn.dataset.id;
+            const formData = new FormData();
+            formData.append('action', 'get_single');
+            formData.append('id', id);
+            const response = await fetch(`${basePath}/api/users`, { method: 'POST', body: formData });
+            const result = await response.json();
+            if (result.status === 'success') {
+                document.getElementById('userModalLabel').textContent = 'Edit Pengguna';
+                form.reset();
+                const user = result.data;
+                document.getElementById('user-id').value = user.id;
+                document.getElementById('user-action').value = 'update';
+                document.getElementById('username').value = user.username;
+                document.getElementById('nama_lengkap').value = user.nama_lengkap;
+                document.getElementById('role').value = user.role;
+                document.getElementById('password').setAttribute('placeholder', 'Kosongkan jika tidak diubah');
+                modal.show();
+            }
+        }
+
+        const deleteBtn = e.target.closest('.delete-btn');
+        if (deleteBtn) {
+            const { id, username } = deleteBtn.dataset;
+            if (confirm(`Yakin ingin menghapus pengguna "${username}"?`)) {
+                const formData = new FormData();
+                formData.append('action', 'delete');
+                formData.append('id', id);
+                const response = await fetch(`${basePath}/api/users`, { method: 'POST', body: formData });
+                const result = await response.json();
+                showToast(result.message, result.status === 'success' ? 'success' : 'error');
+                if (result.status === 'success') loadUsers();
+            }
+        }
+    });
+
+    modalEl.addEventListener('show.bs.modal', (e) => {
+        const button = e.relatedTarget;
+        if (button && button.dataset.action === 'add') {
+            document.getElementById('userModalLabel').textContent = 'Tambah Pengguna Baru';
+            form.reset();
+            document.getElementById('user-id').value = '';
+            document.getElementById('user-action').value = 'add';
+            document.getElementById('password').setAttribute('placeholder', '');
+        }
+    });
+
+    loadUsers();
 }
 
 function initSaldoAwalNeracaPage() {
@@ -1810,6 +2349,8 @@ function initBukuBesarPage() {
     const tampilkanBtn = document.getElementById('bb-tampilkan-btn');
     const reportContent = document.getElementById('bb-report-content');
     const reportHeader = document.getElementById('bb-report-header');
+    const exportPdfBtn = document.getElementById('export-bb-pdf');
+    const exportCsvBtn = document.getElementById('export-bb-csv');
 
     if (!akunFilter) return;
 
@@ -1822,7 +2363,7 @@ function initBukuBesarPage() {
 
     async function loadAccounts() {
         try {
-            const response = await fetch(`${basePath}/api/buku-besar?action=get_accounts`);
+            const response = await fetch(`${basePath}/api/coa`); // Use the existing coa handler
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message);
 
@@ -1853,7 +2394,7 @@ function initBukuBesarPage() {
 
         try {
             const params = new URLSearchParams({ account_id: accountId, start_date: startDate, end_date: endDate });
-            const response = await fetch(`${basePath}/api/buku-besar?${params.toString()}`);
+            const response = await fetch(`${basePath}/api/buku-besar-data?${params.toString()}`);
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message);
 
@@ -1873,10 +2414,16 @@ function initBukuBesarPage() {
             `;
 
             let saldoBerjalan = parseFloat(saldo_awal);
+            const saldoNormal = account_info.saldo_normal;
+
             transactions.forEach(tx => {
                 const debit = parseFloat(tx.debit);
                 const kredit = parseFloat(tx.kredit);
-                saldoBerjalan += debit - kredit;
+                if (saldoNormal === 'Debit') {
+                    saldoBerjalan += debit - kredit;
+                } else { // Kredit
+                    saldoBerjalan += kredit - debit;
+                }
                 tableHtml += `
                     <tr>
                         <td>${new Date(tx.tanggal).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</td>
@@ -1900,6 +2447,21 @@ function initBukuBesarPage() {
     }
 
     tampilkanBtn.addEventListener('click', loadReport);
+
+    exportPdfBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!akunFilter.value) { showToast('Pilih akun terlebih dahulu.', 'error'); return; }
+        const url = `${basePath}/api/laporan_cetak_handler.php?report=buku-besar&account_id=${akunFilter.value}&start_date=${tglMulai.value}&end_date=${tglAkhir.value}`;
+        window.open(url, '_blank');
+    });
+
+    exportCsvBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!akunFilter.value) { showToast('Pilih akun terlebih dahulu.', 'error'); return; }
+        const url = `${basePath}/api/laporan_cetak_csv_handler.php?report=buku-besar&account_id=${akunFilter.value}&start_date=${tglMulai.value}&end_date=${tglAkhir.value}`;
+        window.open(url, '_blank');
+    });
+
     loadAccounts();
 }
 
@@ -2076,6 +2638,8 @@ function initDaftarJurnalPage() {
     const endDateFilter = document.getElementById('filter-jurnal-akhir');
     const limitSelect = document.getElementById('filter-jurnal-limit');
     const paginationContainer = document.getElementById('daftar-jurnal-pagination');
+    const exportPdfBtn = document.getElementById('export-dj-pdf');
+    const exportCsvBtn = document.getElementById('export-dj-csv');
     const viewModalEl = document.getElementById('viewJurnalModal');
 
     if (!tableBody) return;
@@ -2091,71 +2655,60 @@ function initDaftarJurnalPage() {
             end_date: endDateFilter.value,
         });
 
-        tableBody.innerHTML = `<tr><td colspan="5" class="text-center p-5"><div class="spinner-border"></div></td></tr>`;
-        try {
+        tableBody.innerHTML = `<tr><td colspan="8" class="text-center p-5"><div class="spinner-border"></div></td></tr>`;
+        try { // Ubah colspan menjadi 7
             const response = await fetch(`${basePath}/api/entri-jurnal?${params.toString()}`);
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message);
 
             tableBody.innerHTML = '';
             if (result.data.length > 0) {
-                result.data.forEach(je => {
+                let lastRef = null;
+                result.data.forEach((line, index) => {
+                    const isFirstRowOfGroup = line.ref !== lastRef;
+                    const borderTopClass = isFirstRowOfGroup && index > 0 ? 'border-top-heavy' : '';
+
+                    let editBtn, deleteBtn;
+                    if (line.source === 'jurnal') {
+                        editBtn = `<a href="${basePath}/entri-jurnal?edit_id=${line.entry_id}" class="btn btn-sm btn-warning edit-jurnal-btn" title="Edit"><i class="bi bi-pencil-fill"></i></a>`;
+                        deleteBtn = `<button class="btn btn-sm btn-danger delete-jurnal-btn" data-id="${line.entry_id}" data-keterangan="${line.keterangan}" title="Hapus"><i class="bi bi-trash-fill"></i></button>`;
+                    } else { // transaksi
+                        editBtn = `<button class="btn btn-sm btn-warning edit-transaksi-btn" data-id="${line.entry_id}" title="Edit Transaksi"><i class="bi bi-pencil-fill"></i></button>`;
+                        deleteBtn = `<button class="btn btn-sm btn-danger delete-transaksi-btn" data-id="${line.entry_id}" data-keterangan="${line.keterangan}" title="Hapus Transaksi"><i class="bi bi-trash-fill"></i></button>`;
+                    }
+
                     const row = `
-                        <tr>
-                            <td>JRN-${String(je.id).padStart(5, '0')}</td>
-                            <td>${new Date(je.tanggal).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</td>
-                            <td>${je.keterangan}</td>
-                            <td class="text-end">${currencyFormatter.format(je.total)}</td>
-                            <td class="text-end">
-                                <button class="btn btn-sm btn-info view-jurnal-btn" data-id="${je.id}" title="Lihat Detail"><i class="bi bi-eye-fill"></i></button>
-                                <a href="${basePath}/entri-jurnal?edit_id=${je.id}" class="btn btn-sm btn-warning edit-jurnal-btn" title="Edit"><i class="bi bi-pencil-fill"></i></a>
-                                <button class="btn btn-sm btn-danger delete-jurnal-btn" data-id="${je.id}" data-keterangan="${je.keterangan}" title="Hapus"><i class="bi bi-trash-fill"></i></button>
+                        <tr class="${borderTopClass}">
+                            <td>${isFirstRowOfGroup ? line.ref : ''}</td>
+                            <td>${isFirstRowOfGroup ? new Date(line.tanggal).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}) : ''}</td>
+                            <td>${isFirstRowOfGroup ? line.keterangan : ''}</td>
+                            <td class="${line.debit > 0 ? '' : 'ps-4'}">${line.nama_akun || '-'}</td>
+                            <td class="text-end">${line.debit > 0 ? currencyFormatter.format(line.debit) : ''}</td>
+                            <td class="text-end">${line.kredit > 0 ? currencyFormatter.format(line.kredit) : ''}</td>
+                            <td><small>${isFirstRowOfGroup ? line.user_nama : ''}</small></td>
+                            <td class="text-end align-middle" style="width: 130px;">
+                                ${isFirstRowOfGroup ? `
+                                    <div class="btn-group">
+                                        ${editBtn}
+                                        ${deleteBtn}
+                                    </div>
+                                ` : ''}
                             </td>
                         </tr>
                     `;
                     tableBody.insertAdjacentHTML('beforeend', row);
+                    lastRef = line.ref;
                 });
             } else {
-                tableBody.innerHTML = '<tr><td colspan="5" class="text-center">Tidak ada entri jurnal ditemukan.</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="8" class="text-center">Tidak ada entri jurnal ditemukan.</td></tr>';
             }
             renderPagination(paginationContainer, result.pagination, loadJurnal);
         } catch (error) {
-            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Gagal memuat data: ${error.message}</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Gagal memuat data: ${error.message}</td></tr>`;
         }
     }
 
     tableBody.addEventListener('click', async (e) => {
-        const viewBtn = e.target.closest('.view-jurnal-btn');
-        if (viewBtn) {
-            const id = viewBtn.dataset.id;
-            const viewModal = new bootstrap.Modal(viewModalEl);
-            const modalBody = document.getElementById('view-jurnal-body');
-            modalBody.innerHTML = '<div class="text-center p-4"><div class="spinner-border"></div></div>';
-            viewModal.show();
-
-            try {
-                const response = await fetch(`${basePath}/api/entri-jurnal?action=get_single&id=${id}`);
-                const result = await response.json();
-                if (result.status !== 'success') throw new Error(result.message);
-
-                const { header, details } = result.data;
-                let tableHtml = `
-                    <p><strong>Tanggal:</strong> ${new Date(header.tanggal).toLocaleDateString('id-ID', {day:'2-digit', month:'long', year:'numeric'})}</p>
-                    <p><strong>Keterangan:</strong> ${header.keterangan}</p>
-                    <table class="table table-sm table-bordered">
-                        <thead class="table-light"><tr><th>Akun</th><th class="text-end">Debit</th><th class="text-end">Kredit</th></tr></thead>
-                        <tbody>
-                `;
-                details.forEach(line => {
-                    tableHtml += `<tr><td>${line.kode_akun} - ${line.nama_akun}</td><td class="text-end">${line.debit > 0 ? currencyFormatter.format(line.debit) : '-'}</td><td class="text-end">${line.kredit > 0 ? currencyFormatter.format(line.kredit) : '-'}</td></tr>`;
-                });
-                tableHtml += `</tbody></table>`;
-                modalBody.innerHTML = tableHtml;
-            } catch (error) {
-                modalBody.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
-            }
-        }
-
         const deleteBtn = e.target.closest('.delete-jurnal-btn');
         if (deleteBtn) {
             const { id, keterangan } = deleteBtn.dataset;
@@ -2169,6 +2722,46 @@ function initDaftarJurnalPage() {
                 if (result.status === 'success') loadJurnal(1);
             }
         }
+
+        const editTransaksiBtn = e.target.closest('.edit-transaksi-btn');
+        if (editTransaksiBtn) {
+            const id = editTransaksiBtn.dataset.id;
+            // Navigasi ke halaman transaksi dan buka modal edit
+            navigate(`${basePath}/transaksi#edit-${id}`);
+        }
+
+        const deleteTransaksiBtn = e.target.closest('.delete-transaksi-btn');
+        if (deleteTransaksiBtn) {
+            const { id, keterangan } = deleteTransaksiBtn.dataset;
+            if (confirm(`Yakin ingin menghapus transaksi "${keterangan}"?`)) {
+                const formData = new FormData();
+                formData.append('action', 'delete');
+                formData.append('id', id);
+                try {
+                    const response = await fetch(`${basePath}/api/transaksi`, { method: 'POST', body: formData });
+                    const result = await response.json();
+                    showToast(result.message, result.status === 'success' ? 'success' : 'error');
+                    if (result.status === 'success') loadJurnal(1);
+                } catch (error) {
+                    showToast('Gagal menghapus transaksi.', 'error');
+                }
+            }
+        }
+    });
+
+    // --- Export Listeners ---
+    exportPdfBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const params = new URLSearchParams({ report: 'daftar-jurnal', search: searchInput.value, start_date: startDateFilter.value, end_date: endDateFilter.value });
+        const url = `${basePath}/api/laporan_cetak_handler.php?${params.toString()}`;
+        window.open(url, '_blank');
+    });
+
+    exportCsvBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const params = new URLSearchParams({ report: 'daftar-jurnal', format: 'csv', search: searchInput.value, start_date: startDateFilter.value, end_date: endDateFilter.value });
+        const url = `${basePath}/api/laporan_cetak_csv_handler.php?${params.toString()}`;
+        window.open(url, '_blank');
     });
 
     let debounceTimer;
@@ -2206,6 +2799,8 @@ function initSettingsPage() {
     const cfMappingContainer = document.getElementById('arus-kas-mapping-container');
     const saveCfSettingsBtn = document.getElementById('save-arus-kas-settings-btn');
     const cfSettingsForm = document.getElementById('arus-kas-settings-form');
+    const konsinyasiSettingsContainer = document.getElementById('konsinyasi-settings-container');
+    const saveKonsinyasiSettingsBtn = document.getElementById('save-konsinyasi-settings-btn');
     if (!generalSettingsContainer) return;
 
     async function loadSettings() {
@@ -2216,15 +2811,63 @@ function initSettingsPage() {
             if (result.status === 'success') {
                 const settings = result.data;
                 generalSettingsContainer.innerHTML = `
-                    <div class="mb-3">
-                        <label for="app_name" class="form-label">Nama Aplikasi</label>
-                        <input type="text" class="form-control" id="app_name" name="app_name" value="${settings.app_name || ''}">
-                    </div>
-                    <div class="mb-3">
-                        <label for="notification_interval" class="form-label">Interval Refresh Notifikasi (ms)</label>
-                        <input type="number" class="form-control" id="notification_interval" name="notification_interval" value="${settings.notification_interval || ''}">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="app_name" class="form-label">Nama Aplikasi</label>
+                                <input type="text" class="form-control" id="app_name" name="app_name" value="${settings.app_name || ''}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="app_logo" class="form-label">Logo Aplikasi (PNG/JPG, maks 1MB)</label>
+                                <input class="form-control" type="file" id="app_logo" name="app_logo" accept="image/png, image/jpeg">
+                            </div>
+                            <hr>
+                            <h5 class="mb-3">Pengaturan Header Laporan PDF</h5>
+                            <div class="mb-3">
+                                <label for="pdf_header_line1" class="form-label">Header Baris 1</label>
+                                <input type="text" class="form-control" id="pdf_header_line1" name="pdf_header_line1" value="${settings.pdf_header_line1 || ''}" placeholder="cth: NAMA PENGURUS">
+                            </div>
+                            <div class="mb-3">
+                                <label for="pdf_header_line2" class="form-label">Header Baris 2 (Nama Perusahaan)</label>
+                                <input type="text" class="form-control" id="pdf_header_line2" name="pdf_header_line2" value="${settings.pdf_header_line2 || ''}" placeholder="cth: NAMA PERUSAHAAN ANDA">
+                            </div>
+                            <div class="mb-3">
+                                <label for="pdf_header_line3" class="form-label">Header Baris 3 (Alamat)</label>
+                                <input type="text" class="form-control" id="pdf_header_line3" name="pdf_header_line3" value="${settings.pdf_header_line3 || ''}" placeholder="cth: Alamat Sekretariat RT Anda">
+                            </div>
+                            <hr>
+                            <h5 class="mb-3">Pengaturan Tanda Tangan Laporan</h5>
+                             <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="signature_ketua_name" class="form-label">Nama Penanda Tangan 1 (Kanan)</label>
+                                    <input type="text" class="form-control" id="signature_ketua_name" name="signature_ketua_name" value="${settings.signature_ketua_name || ''}" placeholder="cth: John Doe">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="signature_bendahara_name" class="form-label">Nama Penanda Tangan 2 (Kiri)</label>
+                                    <input type="text" class="form-control" id="signature_bendahara_name" name="signature_bendahara_name" value="${settings.signature_bendahara_name || ''}" placeholder="cth: Jane Doe">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="app_city" class="form-label">Kota Laporan</label>
+                                    <input type="text" class="form-control" id="app_city" name="app_city" value="${settings.app_city || ''}" placeholder="cth: Jakarta">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <label class="form-label">Preview Logo</label>
+                            <img id="logo-preview" src="${settings.app_logo ? basePath + '/' + settings.app_logo + '?t=' + new Date().getTime() : 'https://via.placeholder.com/150x50?text=Logo'}" class="img-thumbnail" alt="Logo Preview" style="max-height: 80px;">
+                        </div>
                     </div>
                 `;
+
+                // Event listener untuk preview logo
+                const logoInput = document.getElementById('app_logo');
+                const logoPreview = document.getElementById('logo-preview');
+                if (logoInput && logoPreview) {
+                    logoInput.addEventListener('change', function() {
+                        const file = this.files[0];
+                        if (file) logoPreview.src = URL.createObjectURL(file);
+                    });
+                }
             } else {
                 throw new Error(result.message);
             }
@@ -2315,6 +2958,54 @@ function initSettingsPage() {
         }
     }
 
+    async function loadKonsinyasiSettings() {
+        if (!konsinyasiSettingsContainer) return;
+        try {
+            const [settingsRes, accountsRes] = await Promise.all([
+                fetch(`${basePath}/api/settings`),
+                fetch(`${basePath}/api/settings?action=get_accounts_for_consignment`)
+            ]);
+            const settingsResult = await settingsRes.json();
+            const accountsResult = await accountsRes.json();
+
+            if (settingsResult.status !== 'success' || accountsResult.status !== 'success') {
+                throw new Error(settingsResult.message || accountsResult.message);
+            }
+
+            const settings = settingsResult.data;
+            const { kas, pendapatan, beban, liabilitas } = accountsResult.data;
+
+            const createOptions = (accounts) => accounts.map(acc => `<option value="${acc.id}">${acc.nama_akun}</option>`).join('');
+
+            konsinyasiSettingsContainer.innerHTML = `
+                <div class="mb-3">
+                    <label for="consignment_cash_account" class="form-label">Akun Kas (Penerimaan Penjualan)</label>
+                    <select class="form-select" id="consignment_cash_account" name="consignment_cash_account">${createOptions(kas)}</select>
+                </div>
+                <div class="mb-3">
+                    <label for="consignment_revenue_account" class="form-label">Akun Pendapatan Konsinyasi</label>
+                    <select class="form-select" id="consignment_revenue_account" name="consignment_revenue_account">${createOptions(pendapatan)}</select>
+                </div>
+                <div class="mb-3">
+                    <label for="consignment_cogs_account" class="form-label">Akun HPP Konsinyasi</label>
+                    <select class="form-select" id="consignment_cogs_account" name="consignment_cogs_account">${createOptions(beban)}</select>
+                </div>
+                <div class="mb-3">
+                    <label for="consignment_payable_account" class="form-label">Akun Utang Konsinyasi</label>
+                    <select class="form-select" id="consignment_payable_account" name="consignment_payable_account">${createOptions(liabilitas)}</select>
+                </div>
+            `;
+
+            // Set selected values
+            if (settings.consignment_cash_account) document.getElementById('consignment_cash_account').value = settings.consignment_cash_account;
+            if (settings.consignment_revenue_account) document.getElementById('consignment_revenue_account').value = settings.consignment_revenue_account;
+            if (settings.consignment_cogs_account) document.getElementById('consignment_cogs_account').value = settings.consignment_cogs_account;
+            if (settings.consignment_payable_account) document.getElementById('consignment_payable_account').value = settings.consignment_payable_account;
+        } catch (error) {
+            konsinyasiSettingsContainer.innerHTML = `<div class="alert alert-danger">Gagal memuat pengaturan konsinyasi: ${error.message}</div>`;
+        }
+    }
+
     saveGeneralSettingsBtn.addEventListener('click', async () => {
         const formData = new FormData(generalSettingsForm);
         const originalBtnHtml = saveGeneralSettingsBtn.innerHTML;
@@ -2391,9 +3082,31 @@ function initSettingsPage() {
         });
     }
 
+    if (saveKonsinyasiSettingsBtn) {
+        saveKonsinyasiSettingsBtn.addEventListener('click', async () => {
+            const form = document.getElementById('konsinyasi-settings-form');
+            const formData = new FormData(form);
+            const originalBtnHtml = saveKonsinyasiSettingsBtn.innerHTML;
+            saveKonsinyasiSettingsBtn.disabled = true;
+            saveKonsinyasiSettingsBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Menyimpan...`;
+
+            try {
+                const response = await fetch(`${basePath}/api/settings`, { method: 'POST', body: formData });
+                const result = await response.json();
+                showToast(result.message, result.status === 'success' ? 'success' : 'error');
+            } catch (error) {
+                showToast('Terjadi kesalahan jaringan.', 'error');
+            } finally {
+                saveKonsinyasiSettingsBtn.disabled = false;
+                saveKonsinyasiSettingsBtn.innerHTML = originalBtnHtml;
+            }
+        });
+    }
+
     loadSettings();
     loadTransaksiSettings();
     loadArusKasSettings();
+    loadKonsinyasiSettings();
 }
 
 function initMyProfilePage() {
@@ -2446,8 +3159,8 @@ function initMyProfilePage() {
 function initAnggaranPage() {
     const yearFilter = document.getElementById('anggaran-tahun-filter');
     const reportTableBody = document.getElementById('anggaran-report-table-body');
-    const modalEl = document.getElementById('anggaranModal');
-    const modal = new bootstrap.Modal(modalEl);
+    const modalEl = document.getElementById('anggaranModal');    
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     const modalTahunLabel = document.getElementById('modal-tahun-label');
     const managementContainer = document.getElementById('anggaran-management-container');
     const addAnggaranForm = document.getElementById('add-anggaran-form');
@@ -2802,7 +3515,7 @@ function initGlobalSearch() {
     const searchInput = document.getElementById('global-search-input');
     const resultsContainer = document.getElementById('global-search-results');
     const spinner = document.getElementById('global-search-spinner');
-    const searchModal = new bootstrap.Modal(searchModalEl);
+    const searchModal = bootstrap.Modal.getInstance(searchModalEl) || new bootstrap.Modal(searchModalEl);
 
     let debounceTimer;
 

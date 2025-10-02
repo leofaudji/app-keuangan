@@ -33,14 +33,17 @@ $router->get('/my-profile/change-password', 'pages/my_profile.php', ['auth']);
 // --- Rute Utama Aplikasi Keuangan ---
 $router->get('/transaksi', 'pages/transaksi.php', ['auth']);
 $router->get('/daftar-jurnal', 'pages/daftar_jurnal.php', ['auth']);
+$router->get('/konsinyasi', 'pages/konsinyasi.php', ['auth']);
 $router->get('/entri-jurnal', 'pages/entri_jurnal.php', ['auth']);
 $router->get('/coa', 'pages/coa.php', ['auth']);
 $router->get('/saldo-awal-neraca', 'pages/saldo_awal_neraca.php', ['auth']);
 $router->get('/saldo-awal-lr', 'pages/saldo_awal_lr.php', ['auth']);
 $router->get('/laporan', 'pages/laporan.php', ['auth']);
+$router->get('/anggaran', 'pages/anggaran.php', ['auth']);
 $router->get('/laporan-harian', 'pages/laporan_harian.php', ['auth']);
 $router->get('/buku-besar', 'pages/buku_besar.php', ['auth']);
 $router->get('/settings', 'pages/settings.php', ['auth']);
+$router->get('/users', 'pages/users.php', ['auth', 'admin']); // Halaman manajemen pengguna
 
 // --- Rute API (Untuk proses data via AJAX) ---
 // Rute ini akan dipanggil oleh JavaScript untuk mendapatkan, menambah, mengubah, dan menghapus data tanpa reload halaman.
@@ -56,17 +59,26 @@ $router->post('/api/coa', 'api/coa_handler.php', ['auth']);
 $router->get('/api/laporan/neraca', 'api/laporan_neraca_handler.php', ['auth']);
 $router->get('/api/laporan/laba-rugi', 'api/laporan_laba_rugi_handler.php', ['auth']);
 $router->get('/api/laporan-harian', 'api/laporan_harian_handler.php', ['auth']);
+$router->get('/api/laporan/cetak', 'api/laporan_cetak_csv_handler.php', ['auth']); // Rute untuk cetak CSV
+$router->get('/api/laporan_cetak_handler.php', 'api/laporan_cetak_handler.php', ['auth']); // Rute untuk cetak PDF
 $router->get('/api/saldo-awal-neraca', 'api/saldo_awal_neraca_handler.php', ['auth']);
 $router->post('/api/saldo-awal-neraca', 'api/saldo_awal_neraca_handler.php', ['auth']);
 $router->get('/api/saldo-awal-lr', 'api/saldo_awal_lr_handler.php', ['auth']);
 $router->post('/api/saldo-awal-lr', 'api/saldo_awal_lr_handler.php', ['auth']);
-$router->get('/api/buku-besar', 'api/buku_besar_handler.php', ['auth']);
+$router->get('/api/buku-besar-data', 'api/buku_besar_data_handler.php', ['auth']);
 $router->get('/api/entri-jurnal', 'api/entri_jurnal_handler.php', ['auth']);
 $router->get('/api/laporan/arus-kas', 'api/laporan_arus_kas_handler.php', ['auth']);
 $router->post('/api/entri-jurnal', 'api/entri_jurnal_handler.php', ['auth']);
 
+$router->get('/api/konsinyasi', 'api/konsinyasi_handler.php', ['auth']);
+$router->post('/api/konsinyasi', 'api/konsinyasi_handler.php', ['auth']);
+
+$router->get('/api/anggaran', 'api/anggaran_handler.php', ['auth']);
+$router->post('/api/anggaran', 'api/anggaran_handler.php', ['auth']);
 $router->get('/api/settings', 'api/settings_handler.php', ['auth']);
 $router->post('/api/settings', 'api/settings_handler.php', ['auth']);
+$router->get('/api/users', 'api/users_handler.php', ['auth', 'admin']); // API untuk manajemen pengguna
+$router->post('/api/users', 'api/users_handler.php', ['auth', 'admin']);
 
 
 // Jalankan router

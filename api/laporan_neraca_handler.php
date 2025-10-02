@@ -13,88 +13,33 @@ $user_id = $_SESSION['user_id'];
 $per_tanggal = $_GET['tanggal'] ?? date('Y-m-d');
 
 try {
-    // 1. Ambil SEMUA akun untuk menghitung mutasi secara komprehensif
-    $stmt_accounts = $conn->prepare(" 
-        SELECT id, parent_id, kode_akun, nama_akun, tipe_akun, saldo_normal, saldo_awal 
-        FROM accounts 
-        WHERE user_id = ?
-        ORDER BY kode_akun ASC
+    // 1. Ambil semua akun beserta total mutasinya dari general_ledger
+    $stmt = $conn->prepare("
+        SELECT
+            a.id, a.parent_id, a.kode_akun, a.nama_akun, a.tipe_akun, a.saldo_normal, a.saldo_awal,
+            COALESCE(SUM(
+                CASE
+                    WHEN a.saldo_normal = 'Debit' THEN gl.debit - gl.kredit
+                    ELSE gl.kredit - gl.debit
+                END
+            ), 0) as mutasi
+        FROM accounts a
+        LEFT JOIN general_ledger gl ON a.id = gl.account_id AND gl.user_id = a.user_id AND gl.tanggal <= ?
+        WHERE a.user_id = ?
+        GROUP BY a.id
+        ORDER BY a.kode_akun ASC
     ");
-    $stmt_accounts->bind_param('i', $user_id);
-    $stmt_accounts->execute();
-    $accounts_result = $stmt_accounts->get_result();
+    $stmt->bind_param('si', $per_tanggal, $user_id);
+    $stmt->execute();
+    $accounts_result = $stmt->get_result();
     $accounts = [];
     while ($row = $accounts_result->fetch_assoc()) {
-        $accounts[$row['id']] = $row;
-        $accounts[$row['id']]['saldo_akhir'] = (float)$row['saldo_awal'];
+        $row['saldo_akhir'] = (float)$row['saldo_awal'] + (float)$row['mutasi'];
+        $accounts[] = $row;
     }
-    $stmt_accounts->close();
+    $stmt->close();
 
-    // 2. Proses mutasi dari transaksi sederhana
-    $stmt_transactions = $conn->prepare("
-        SELECT 
-            t.jenis, t.jumlah, t.account_id, t.kas_account_id, t.kas_tujuan_account_id
-        FROM transaksi t
-        WHERE t.user_id = ? AND t.tanggal <= ?
-    ");
-    $stmt_transactions->bind_param('is', $user_id, $per_tanggal);
-    $stmt_transactions->execute();
-    $transactions_result = $stmt_transactions->get_result();
-
-    while ($tx = $transactions_result->fetch_assoc()) {
-        $jumlah = (float)$tx['jumlah'];
-        if ($tx['jenis'] === 'pemasukan') {
-            // Akun Kas (Aset, Debit normal) bertambah
-            if (isset($accounts[$tx['kas_account_id']])) {
-                $accounts[$tx['kas_account_id']]['saldo_akhir'] += $jumlah;
-            }
-            // Akun Pendapatan (Kredit normal) bertambah
-            if (isset($accounts[$tx['account_id']])) {
-                $accounts[$tx['account_id']]['saldo_akhir'] += $jumlah;
-            }
-        } elseif ($tx['jenis'] === 'pengeluaran') {
-            // Akun Kas (Aset, Debit normal) berkurang
-            if (isset($accounts[$tx['kas_account_id']])) {
-                $accounts[$tx['kas_account_id']]['saldo_akhir'] -= $jumlah;
-            }
-            // Akun lawan (Beban atau Liabilitas)
-            if (isset($accounts[$tx['account_id']])) {
-                if ($accounts[$tx['account_id']]['saldo_normal'] === 'Debit') { // e.g., Beban
-                    $accounts[$tx['account_id']]['saldo_akhir'] += $jumlah;
-                } else { // e.g., Liabilitas (saldo normal Kredit)
-                    $accounts[$tx['account_id']]['saldo_akhir'] -= $jumlah; // Pembayaran utang mengurangi liabilitas
-                }
-            }
-        } elseif ($tx['jenis'] === 'transfer') {
-            if (isset($accounts[$tx['kas_account_id']])) $accounts[$tx['kas_account_id']]['saldo_akhir'] -= $jumlah;
-            if (isset($accounts[$tx['kas_tujuan_account_id']])) $accounts[$tx['kas_tujuan_account_id']]['saldo_akhir'] += $jumlah;
-        }
-    }
-    $stmt_transactions->close();
-
-    // 3. Proses mutasi dari Jurnal Umum (Majemuk)
-    $stmt_jurnal = $conn->prepare("
-        SELECT jd.account_id, jd.debit, jd.kredit
-        FROM jurnal_details jd
-        JOIN jurnal_entries je ON jd.jurnal_entry_id = je.id
-        WHERE je.user_id = ? AND je.tanggal <= ?
-    ");
-    $stmt_jurnal->bind_param('is', $user_id, $per_tanggal);
-    $stmt_jurnal->execute();
-    $jurnal_result = $stmt_jurnal->get_result();
-    while ($jurnal_line = $jurnal_result->fetch_assoc()) {
-        if (isset($accounts[$jurnal_line['account_id']])) {
-            $current_account = &$accounts[$jurnal_line['account_id']];
-            if ($current_account['saldo_normal'] === 'Debit') {
-                $current_account['saldo_akhir'] += (float)$jurnal_line['debit'] - (float)$jurnal_line['kredit'];
-            } else { // Saldo Normal adalah Kredit
-                $current_account['saldo_akhir'] += (float)$jurnal_line['kredit'] - (float)$jurnal_line['debit'];
-            }
-        }
-    }
-    $stmt_jurnal->close();
-
-    // 4. Hitung Laba Rugi Berjalan dari saldo akhir akun Pendapatan dan Beban
+    // 2. Hitung Laba Rugi Berjalan dari saldo akhir akun Pendapatan dan Beban
     $total_pendapatan = 0;
     $total_beban = 0;
     foreach ($accounts as $acc) {
@@ -106,14 +51,14 @@ try {
     }
     $laba_rugi_berjalan = $total_pendapatan - $total_beban;
 
-    // 5. Buat akun virtual untuk Laba Rugi Berjalan dan tambahkan ke Ekuitas
+    // 3. Buat akun virtual untuk Laba Rugi Berjalan dan tambahkan ke Ekuitas
     $accounts['laba_rugi_virtual'] = [
         'id' => 'laba_rugi_virtual', 'parent_id' => 300, 'kode_akun' => '3-9999',
         'nama_akun' => 'Laba (Rugi) Periode Berjalan', 'tipe_akun' => 'Ekuitas',
         'saldo_akhir' => $laba_rugi_berjalan
     ];
 
-    // Filter hanya akun Neraca untuk dikirim
+    // 4. Filter hanya akun Neraca untuk dikirim
     $neraca_accounts = array_filter($accounts, function($acc) {
         return in_array($acc['tipe_akun'], ['Aset', 'Liabilitas', 'Ekuitas']);
     });

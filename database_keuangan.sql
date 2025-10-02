@@ -1,7 +1,7 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- Hapus tabel lama jika ada
-DROP TABLE IF EXISTS `transaksi`, `anggaran`, `users`, `settings`, `accounts`, `activity_log`,`jurnal_entries`,`jurnal_details`;
+DROP TABLE IF EXISTS `transaksi`, `anggaran`, `users`, `settings`, `accounts`, `activity_log`,`jurnal_entries`,`jurnal_details`,`general_ledger`, `suppliers`, `consignment_items`;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -49,6 +49,10 @@ CREATE TABLE `transaksi` (
   `kas_account_id` int(11) NOT NULL COMMENT 'Akun kas/bank yang terpengaruh',
   `kas_tujuan_account_id` int(11) DEFAULT NULL COMMENT 'Untuk transfer antar akun kas',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `updated_by` int(11) DEFAULT NULL,
+  `status` enum('aktif','dibatalkan') NOT NULL DEFAULT 'aktif',
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
@@ -57,12 +61,66 @@ CREATE TABLE `transaksi` (
   FOREIGN KEY (`kas_tujuan_account_id`) REFERENCES `accounts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Tabel Buku Besar Umum (General Ledger) - PUSAT DATA AKUNTANSI
+CREATE TABLE `general_ledger` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `tanggal` date NOT NULL,
+  `keterangan` varchar(255) DEFAULT NULL,
+  `qty` int(11) DEFAULT NULL COMMENT 'Quantity for consignment sales',
+  `consignment_item_id` int(11) DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `nomor_referensi` varchar(50) DEFAULT NULL,
+  `account_id` int(11) NOT NULL,
+  `debit` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `kredit` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `ref_id` int(11) NOT NULL COMMENT 'ID dari tabel sumber (transaksi atau jurnal_entries)',
+  `ref_type` enum('transaksi','jurnal') NOT NULL COMMENT 'Tabel sumber',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`),
+  KEY `account_id` (`account_id`),
+  KEY `ref_id_type` (`ref_id`,`ref_type`),
+  KEY `tanggal` (`tanggal`),
+  KEY `consignment_item_id` (`consignment_item_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabel Pemasok (untuk konsinyasi)
+CREATE TABLE `suppliers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `nama_pemasok` varchar(100) NOT NULL,
+  `kontak` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabel Barang Konsinyasi
+CREATE TABLE `consignment_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `supplier_id` int(11) NOT NULL,
+  `nama_barang` varchar(100) NOT NULL,
+  `harga_jual` decimal(15,2) NOT NULL,
+  `harga_beli` decimal(15,2) NOT NULL COMMENT 'Harga yang harus dibayar ke pemasok',
+  `stok_awal` int(11) NOT NULL DEFAULT 0,
+  `tanggal_terima` date NOT NULL,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Tabel untuk header entri jurnal umum (majemuk)
 CREATE TABLE `jurnal_entries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `tanggal` date NOT NULL,
   `keterangan` varchar(255) NOT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `updated_by` int(11) DEFAULT NULL,
+  `status` enum('aktif','dibatalkan') NOT NULL DEFAULT 'aktif',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE

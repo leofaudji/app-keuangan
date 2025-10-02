@@ -212,40 +212,68 @@ function get_user_id_from_username(string $nama_panggilan): ?int {
  * @return float Total saldo kas.
  */
 function get_cash_balance_on_date($conn, $user_id, $date) {
-    // 1. Saldo awal dari semua akun kas
-    $stmt_saldo_awal = $conn->prepare("SELECT COALESCE(SUM(saldo_awal), 0) as total FROM accounts WHERE user_id = ? AND is_kas = 1");
+    // 1. Ambil total saldo awal dari semua akun kas
+    $stmt_saldo_awal = $conn->prepare("SELECT COALESCE(SUM(a.saldo_awal), 0) as total_saldo_awal FROM accounts a WHERE a.user_id = ? AND a.is_kas = 1");
     $stmt_saldo_awal->bind_param('i', $user_id);
     $stmt_saldo_awal->execute();
-    $saldo_awal_kas = (float)$stmt_saldo_awal->get_result()->fetch_assoc()['total'];
+    $total_saldo_awal = (float)$stmt_saldo_awal->get_result()->fetch_assoc()['total_saldo_awal'];
     $stmt_saldo_awal->close();
 
-    // 2. Mutasi dari transaksi sederhana
-    $stmt_mutasi_trx = $conn->prepare("
-        SELECT 
-            COALESCE(SUM(CASE WHEN jenis = 'pemasukan' THEN jumlah ELSE 0 END), 0) as total_pemasukan,
-            COALESCE(SUM(CASE WHEN jenis = 'pengeluaran' THEN jumlah ELSE 0 END), 0) as total_pengeluaran
-        FROM transaksi 
-        WHERE user_id = ? AND tanggal <= ?
-    ");
-    $stmt_mutasi_trx->bind_param('is', $user_id, $date);
-    $stmt_mutasi_trx->execute();
-    $mutasi_trx = $stmt_mutasi_trx->get_result()->fetch_assoc();
-    $stmt_mutasi_trx->close();
-
-    // 3. Mutasi dari jurnal majemuk
+    // 2. Ambil total mutasi dari semua akun kas dari general_ledger
     $stmt_mutasi_jurnal = $conn->prepare("
-        SELECT COALESCE(SUM(jd.debit - jd.kredit), 0) as total_mutasi
-        FROM jurnal_details jd
-        JOIN jurnal_entries je ON jd.jurnal_entry_id = je.id
-        JOIN accounts a ON jd.account_id = a.id
-        WHERE je.user_id = ? AND je.tanggal <= ? AND a.is_kas = 1
+        SELECT COALESCE(SUM(gl.debit - gl.kredit), 0) as total_mutasi
+        FROM general_ledger gl
+        JOIN accounts a ON gl.account_id = a.id
+        WHERE gl.user_id = ? AND gl.tanggal <= ? AND a.is_kas = 1
     ");
     $stmt_mutasi_jurnal->bind_param('is', $user_id, $date);
     $stmt_mutasi_jurnal->execute();
     $mutasi_jurnal = (float)$stmt_mutasi_jurnal->get_result()->fetch_assoc()['total_mutasi'];
     $stmt_mutasi_jurnal->close();
 
-    return $saldo_awal_kas + (float)$mutasi_trx['total_pemasukan'] - (float)$mutasi_trx['total_pengeluaran'] + $mutasi_jurnal;
+    return $total_saldo_awal + $mutasi_jurnal;
+}
+
+/**
+ * Menghitung saldo dari satu akun spesifik pada tanggal tertentu.
+ *
+ * @param mysqli $conn Koneksi database.
+ * @param int $user_id ID pengguna.
+ * @param int $account_id ID akun yang akan dihitung.
+ * @param string $date Tanggal dalam format Y-m-d.
+ * @return float Total saldo akun.
+ */
+function get_account_balance_on_date($conn, $user_id, $account_id, $date) {
+    // 1. Ambil info akun (saldo awal dan saldo normal)
+    $stmt_acc = $conn->prepare("SELECT saldo_awal, saldo_normal FROM accounts WHERE id = ? AND user_id = ?");
+    $stmt_acc->bind_param('ii', $account_id, $user_id);
+    $stmt_acc->execute();
+    $account_info = $stmt_acc->get_result()->fetch_assoc();
+    $stmt_acc->close();
+
+    if (!$account_info) {
+        return 0; // Atau throw exception
+    }
+
+    $saldo = (float)$account_info['saldo_awal'];
+    $saldo_normal = $account_info['saldo_normal'];
+
+    // 2. Hitung mutasi dari jurnal (termasuk yang dibuat dari transaksi sederhana)
+    $stmt_mutasi = $conn->prepare(" 
+        SELECT 
+            COALESCE(SUM(jd.debit), 0) as total_debit,
+            COALESCE(SUM(jd.kredit), 0) as total_kredit
+        FROM general_ledger jd
+        WHERE jd.user_id = ? AND jd.account_id = ? AND jd.tanggal <= ?
+    ");
+    $stmt_mutasi->bind_param('iis', $user_id, $account_id, $date);
+    $stmt_mutasi->execute();
+    $mutasi = $stmt_mutasi->get_result()->fetch_assoc();
+    $stmt_mutasi->close();
+
+    $saldo += ($saldo_normal === 'Debit') ? ((float)$mutasi['total_debit'] - (float)$mutasi['total_kredit']) : ((float)$mutasi['total_kredit'] - (float)$mutasi['total_debit']);
+
+    return $saldo;
 }
 
 /**
@@ -289,62 +317,32 @@ function find_unbalanced_journal_entries($conn, $user_id, $per_tanggal) {
  */
 function get_balance_sheet_status($conn, $user_id, $per_tanggal) {
     try {
-        // 1. Ambil SEMUA akun
-        $stmt_accounts = $conn->prepare("SELECT id, tipe_akun, saldo_normal, saldo_awal FROM accounts WHERE user_id = ?");
-        $stmt_accounts->bind_param('i', $user_id);
-        $stmt_accounts->execute();
-        $accounts_result = $stmt_accounts->get_result();
+        // 1. Ambil semua akun beserta total mutasinya dari general_ledger
+        $stmt = $conn->prepare("
+            SELECT
+                a.id, a.tipe_akun, a.saldo_normal, a.saldo_awal,
+                COALESCE(SUM(
+                    CASE
+                        WHEN a.saldo_normal = 'Debit' THEN gl.debit - gl.kredit
+                        ELSE gl.kredit - gl.debit
+                    END
+                ), 0) as mutasi
+            FROM accounts a
+            LEFT JOIN general_ledger gl ON a.id = gl.account_id AND gl.user_id = a.user_id AND gl.tanggal <= ?
+            WHERE a.user_id = ?
+            GROUP BY a.id
+        ");
+        $stmt->bind_param('si', $per_tanggal, $user_id);
+        $stmt->execute();
+        $accounts_result = $stmt->get_result();
         $accounts = [];
         while ($row = $accounts_result->fetch_assoc()) {
-            $accounts[$row['id']] = $row;
-            $accounts[$row['id']]['saldo_akhir'] = (float)$row['saldo_awal'];
+            $row['saldo_akhir'] = (float)$row['saldo_awal'] + (float)$row['mutasi'];
+            $accounts[] = $row;
         }
-        $stmt_accounts->close();
+        $stmt->close();
 
-        // 2. Proses mutasi dari transaksi sederhana
-        $stmt_transactions = $conn->prepare("SELECT jenis, jumlah, account_id, kas_account_id, kas_tujuan_account_id FROM transaksi WHERE user_id = ? AND tanggal <= ?");
-        $stmt_transactions->bind_param('is', $user_id, $per_tanggal);
-        $stmt_transactions->execute();
-        $transactions_result = $stmt_transactions->get_result();
-        while ($tx = $transactions_result->fetch_assoc()) {
-            $jumlah = (float)$tx['jumlah'];
-            if ($tx['jenis'] === 'pemasukan') {
-                if (isset($accounts[$tx['kas_account_id']])) $accounts[$tx['kas_account_id']]['saldo_akhir'] += $jumlah;
-                if (isset($accounts[$tx['account_id']])) $accounts[$tx['account_id']]['saldo_akhir'] += $jumlah;
-            } elseif ($tx['jenis'] === 'pengeluaran') {
-                if (isset($accounts[$tx['kas_account_id']])) $accounts[$tx['kas_account_id']]['saldo_akhir'] -= $jumlah;
-                if (isset($accounts[$tx['account_id']])) {
-                    if ($accounts[$tx['account_id']]['saldo_normal'] === 'Debit') {
-                        $accounts[$tx['account_id']]['saldo_akhir'] += $jumlah;
-                    } else {
-                        $accounts[$tx['account_id']]['saldo_akhir'] -= $jumlah;
-                    }
-                }
-            } elseif ($tx['jenis'] === 'transfer') {
-                if (isset($accounts[$tx['kas_account_id']])) $accounts[$tx['kas_account_id']]['saldo_akhir'] -= $jumlah;
-                if (isset($accounts[$tx['kas_tujuan_account_id']])) $accounts[$tx['kas_tujuan_account_id']]['saldo_akhir'] += $jumlah;
-            }
-        }
-        $stmt_transactions->close();
-
-        // 3. Proses mutasi dari Jurnal Umum
-        $stmt_jurnal = $conn->prepare("SELECT jd.account_id, jd.debit, jd.kredit FROM jurnal_details jd JOIN jurnal_entries je ON jd.jurnal_entry_id = je.id WHERE je.user_id = ? AND je.tanggal <= ?");
-        $stmt_jurnal->bind_param('is', $user_id, $per_tanggal);
-        $stmt_jurnal->execute();
-        $jurnal_result = $stmt_jurnal->get_result();
-        while ($jurnal_line = $jurnal_result->fetch_assoc()) {
-            if (isset($accounts[$jurnal_line['account_id']])) {
-                $current_account = &$accounts[$jurnal_line['account_id']];
-                if ($current_account['saldo_normal'] === 'Debit') {
-                    $current_account['saldo_akhir'] += (float)$jurnal_line['debit'] - (float)$jurnal_line['kredit'];
-                } else {
-                    $current_account['saldo_akhir'] += (float)$jurnal_line['kredit'] - (float)$jurnal_line['debit'];
-                }
-            }
-        }
-        $stmt_jurnal->close();
-
-        // 4. Hitung total Aset, Liabilitas, dan Ekuitas
+        // 2. Hitung total Aset, Liabilitas, dan Ekuitas
         $total_aset = 0;
         $total_liabilitas_ekuitas = 0;
         $total_pendapatan = 0;
@@ -358,11 +356,11 @@ function get_balance_sheet_status($conn, $user_id, $per_tanggal) {
             if ($acc['tipe_akun'] === 'Beban') $total_beban += $acc['saldo_akhir'];
         }
 
-        // 5. Tambahkan Laba (Rugi) Periode Berjalan ke sisi Liabilitas + Ekuitas
+        // 3. Tambahkan Laba (Rugi) Periode Berjalan ke sisi Liabilitas + Ekuitas
         $laba_rugi_berjalan = $total_pendapatan - $total_beban;
         $total_liabilitas_ekuitas += $laba_rugi_berjalan;
 
-        // 6. Bandingkan total dengan toleransi kecil untuk floating point
+        // 4. Bandingkan total dengan toleransi kecil untuk floating point
         $is_balanced = abs($total_aset - $total_liabilitas_ekuitas) < 0.01;
 
         if ($is_balanced) {

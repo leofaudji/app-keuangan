@@ -24,102 +24,49 @@ try {
     // Saldo Kas Akhir Periode
     $saldo_kas_akhir = get_cash_balance_on_date($conn, $user_id, $end_date);
 
-    // Ambil semua transaksi dalam periode
-    $stmt_trx = $conn->prepare("
-        SELECT t.jenis, t.jumlah, a.nama_akun as nama_akun_lawan, a.cash_flow_category
-        FROM transaksi t
-        LEFT JOIN accounts a ON t.account_id = a.id -- Akun lawan
-        WHERE t.user_id = ? AND t.tanggal BETWEEN ? AND ?
-    ");
-    $stmt_trx->bind_param('iss', $user_id, $start_date, $end_date);
-    $stmt_trx->execute();
-    $transactions = $stmt_trx->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt_trx->close();
-
-    // Ambil semua baris jurnal dalam periode
-    $stmt_jurnal = $conn->prepare("
-        SELECT je.id as jurnal_id, jd.debit, jd.kredit, a.nama_akun, a.cash_flow_category, a.is_kas
-        FROM jurnal_details jd
-        JOIN jurnal_entries je ON jd.jurnal_entry_id = je.id
-        JOIN accounts a ON jd.account_id = a.id
-        WHERE je.user_id = ? AND je.tanggal BETWEEN ? AND ?
-    ");
-    $stmt_jurnal->bind_param('iss', $user_id, $start_date, $end_date);
-    $stmt_jurnal->execute();
-    $journal_lines = $stmt_jurnal->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt_jurnal->close();
-
     // Kelompokkan arus kas
     $arus_kas_operasi = ['total' => 0, 'details' => []];
     $arus_kas_investasi = ['total' => 0, 'details' => []];
     $arus_kas_pendanaan = ['total' => 0, 'details' => []];
 
     // Helper untuk menambahkan detail
-    function add_detail(&$details, $key, $amount) {
-        if (!isset($details[$key])) {
-            $details[$key] = 0;
-        }
-        $details[$key] += $amount;
-    }
+    $add_detail = function(&$details, $key, $amount) { if (!isset($details[$key])) { $details[$key] = 0; } $details[$key] += $amount; };
 
-    // Proses dari tabel transaksi (sederhana)
-    foreach ($transactions as $tx) {
-        if ($tx['jenis'] === 'transfer') continue; // Abaikan transfer internal
+    // Ambil semua pergerakan kas dan akun lawannya dari general_ledger
+    $stmt = $conn->prepare("
+        SELECT 
+            non_cash.nama_akun,
+            non_cash.cash_flow_category,
+            SUM(cash.debit - cash.kredit) as cash_mutation
+        FROM general_ledger cash
+        JOIN accounts cash_acc ON cash.account_id = cash_acc.id
+        JOIN general_ledger non_cash_gl ON cash.ref_id = non_cash_gl.ref_id AND cash.ref_type = non_cash_gl.ref_type
+        JOIN accounts non_cash ON non_cash_gl.account_id = non_cash.id
+        WHERE cash.user_id = ? 
+          AND cash.tanggal BETWEEN ? AND ?
+          AND cash_acc.is_kas = 1
+          AND non_cash.is_kas = 0
+        GROUP BY non_cash.nama_akun, non_cash.cash_flow_category
+    ");
+    $stmt->bind_param('iss', $user_id, $start_date, $end_date);
+    $stmt->execute();
+    $results = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
 
-        $jumlah = (float)$tx['jumlah'] * ($tx['jenis'] === 'pemasukan' ? 1 : -1);
-        $akun_lawan = $tx['nama_akun_lawan'] ?? 'Lain-lain';
+    foreach ($results as $row) {
+        $jumlah = (float)$row['cash_mutation'];
+        $akun_lawan = $row['nama_akun'];
+        $category = $row['cash_flow_category'] ?? 'Operasi'; // Default ke Operasi
 
-        if ($tx['cash_flow_category'] === 'Operasi') {
-            $arus_kas_operasi['total'] += $jumlah;
-            add_detail($arus_kas_operasi['details'], $akun_lawan, $jumlah);
-        } elseif ($tx['cash_flow_category'] === 'Investasi') {
+        if ($category === 'Investasi') {
             $arus_kas_investasi['total'] += $jumlah;
-            add_detail($arus_kas_investasi['details'], $akun_lawan, $jumlah);
-        } elseif ($tx['cash_flow_category'] === 'Pendanaan') {
+            $add_detail($arus_kas_investasi['details'], $akun_lawan, $jumlah);
+        } elseif ($category === 'Pendanaan') {
             $arus_kas_pendanaan['total'] += $jumlah;
-            add_detail($arus_kas_pendanaan['details'], $akun_lawan, $jumlah);
-        } else {
-            // Jika tidak terklasifikasi, masukkan ke Operasi
+            $add_detail($arus_kas_pendanaan['details'], $akun_lawan, $jumlah);
+        } else { // Operasi
             $arus_kas_operasi['total'] += $jumlah;
-            add_detail($arus_kas_operasi['details'], $akun_lawan, $jumlah);
-        }
-    }
-
-    // Proses dari tabel jurnal (majemuk)
-    $grouped_journals = [];
-    foreach ($journal_lines as $line) {
-        $grouped_journals[$line['jurnal_id']][] = $line;
-    }
-
-    foreach ($grouped_journals as $jurnal_id => $lines) {
-        $cash_mutation = 0;
-        $non_cash_lines = [];
-        foreach ($lines as $line) { 
-            if ($line['is_kas'] == 1) {
-                $cash_mutation += (float)$line['debit'] - (float)$line['kredit'];
-            } else {
-                $non_cash_lines[] = $line;
-            }
-        }
-
-        if ($cash_mutation != 0) {
-            // Asumsikan jurnal sederhana (1 kas, 1 non-kas) untuk kategorisasi
-            if (count($non_cash_lines) === 1) {
-                $akun_lawan = $non_cash_lines[0];
-                if ($akun_lawan['cash_flow_category'] === 'Operasi') {
-                    $arus_kas_operasi['total'] += $cash_mutation;
-                    add_detail($arus_kas_operasi['details'], $akun_lawan['nama_akun'], $cash_mutation);
-                } elseif ($akun_lawan['cash_flow_category'] === 'Investasi') {
-                    $arus_kas_investasi['total'] += $cash_mutation;
-                    add_detail($arus_kas_investasi['details'], $akun_lawan['nama_akun'], $cash_mutation);
-                } elseif ($akun_lawan['cash_flow_category'] === 'Pendanaan') {
-                    $arus_kas_pendanaan['total'] += $cash_mutation;
-                    add_detail($arus_kas_pendanaan['details'], $akun_lawan['nama_akun'], $cash_mutation);
-                } else {
-                    $arus_kas_operasi['total'] += $cash_mutation;
-                    add_detail($arus_kas_operasi['details'], $akun_lawan['nama_akun'], $cash_mutation);
-                }
-            }
+            $add_detail($arus_kas_operasi['details'], $akun_lawan, $jumlah);
         }
     }
 

@@ -458,10 +458,12 @@ body.dark-mode .text-muted {
     /* 1. Sembunyikan semua elemen yang TIDAK ingin dicetak */
     body.is-printing .sidebar,
     body.is-printing .top-navbar,
-    body.is-printing .footer-fixed,
     body.is-printing .main-content > .border-bottom,
     body.is-printing .nav-tabs,
-    body.is-printing .card:not(.print-area) /* Sembunyikan semua card KECUALI yang ditandai untuk dicetak */ {
+    body.is-printing .main-content > *:not(.print-area-wrapper),
+    body.is-printing .print-area-wrapper > *:not(.print-area),
+    body.is-printing .print-area .card-header,
+    body.is-printing .print-area .d-flex.justify-content-between.align-items-center.mb-3 {
         display: none !important;
     }
 
@@ -474,21 +476,14 @@ body.dark-mode .text-muted {
     }
 
     body.is-printing .print-area {
-        display: block !important;
         box-shadow: none !important;
         border: none !important;
     }
 
     /* 3. Atur agar header cetak kustom kita terlihat */
     .print-only-header {
-        display: block;
+        display: block !important;
         text-align: center;
         margin: 0 1cm 1cm 1cm; /* Beri margin agar tidak terlalu mepet ke tepi kertas */
-    }
-
-    /* 4. Sembunyikan elemen UI di dalam card yang tidak perlu dicetak */
-    body.is-printing .print-area .card-header,
-    body.is-printing .print-area .d-flex.justify-content-between.align-items-center.mb-3 {
-        display: none !important;
     }
 }

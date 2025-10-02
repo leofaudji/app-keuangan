@@ -14,69 +14,50 @@ $user_id = $_SESSION['user_id'];
 $tanggal_mulai = $_GET['start'] ?? date('Y-m-01');
 $tanggal_akhir = $_GET['end'] ?? date('Y-m-t');
 
+// Parameter untuk perbandingan
+$is_comparison = isset($_GET['compare']) && $_GET['compare'] === 'true';
+$tanggal_mulai_2 = $_GET['start2'] ?? null;
+$tanggal_akhir_2 = $_GET['end2'] ?? null;
+
 try {
-    // 1. Ambil semua akun Pendapatan beserta total transaksinya
-    $stmt_pendapatan = $conn->prepare("
-        SELECT a.id, a.kode_akun, a.nama_akun, (a.saldo_awal + COALESCE(trx.total, 0) + COALESCE(jurnal.total, 0)) as total
-        FROM accounts a
-        -- Subquery untuk transaksi sederhana
-        LEFT JOIN (
-            SELECT account_id, SUM(jumlah) as total
-            FROM transaksi
-            WHERE user_id = ? AND jenis = 'pemasukan' AND tanggal BETWEEN ? AND ?
-            GROUP BY account_id
-        ) trx ON a.id = trx.account_id
-        -- Subquery untuk jurnal majemuk
-        LEFT JOIN (
-            SELECT jd.account_id, SUM(jd.kredit - jd.debit) as total
-            FROM jurnal_details jd
-            JOIN jurnal_entries je ON jd.jurnal_entry_id = je.id
-            WHERE je.user_id = ? AND je.tanggal BETWEEN ? AND ?
-            GROUP BY jd.account_id
-        ) jurnal ON a.id = jurnal.account_id
-        WHERE a.user_id = ? AND a.tipe_akun = 'Pendapatan'
-        ORDER BY a.kode_akun ASC
-    ");
-    $stmt_pendapatan->bind_param('ississi', $user_id, $tanggal_mulai, $tanggal_akhir, $user_id, $tanggal_mulai, $tanggal_akhir, $user_id);
-    $stmt_pendapatan->execute();
-    $pendapatan = $stmt_pendapatan->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt_pendapatan->close();
+    function fetch_lr_data($conn, $user_id, $start, $end) {
+        $stmt = $conn->prepare("
+            SELECT 
+                a.id, a.kode_akun, a.nama_akun, a.tipe_akun, a.saldo_awal,
+                COALESCE(SUM(
+                    CASE
+                        WHEN a.tipe_akun = 'Pendapatan' THEN gl.kredit - gl.debit
+                        WHEN a.tipe_akun = 'Beban' THEN gl.debit - gl.kredit
+                        ELSE 0
+                    END
+                ), 0) as mutasi
+            FROM accounts a
+            LEFT JOIN general_ledger gl ON a.id = gl.account_id AND gl.user_id = a.user_id AND gl.tanggal BETWEEN ? AND ?
+            WHERE a.user_id = ? AND a.tipe_akun IN ('Pendapatan', 'Beban')
+            GROUP BY a.id, a.kode_akun, a.nama_akun, a.tipe_akun, a.saldo_awal
+            ORDER BY a.kode_akun ASC
+        ");
+        $stmt->bind_param('ssi', $start, $end, $user_id);
+        $stmt->execute();
+        $accounts = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
 
-    // 2. Ambil semua akun Beban beserta total transaksinya
-    $stmt_beban = $conn->prepare("
-        SELECT a.id, a.kode_akun, a.nama_akun, (a.saldo_awal + COALESCE(trx.total, 0) + COALESCE(jurnal.total, 0)) as total
-        FROM accounts a
-        -- Subquery untuk transaksi sederhana
-        LEFT JOIN (
-            SELECT account_id, SUM(jumlah) as total
-            FROM transaksi
-            WHERE user_id = ? AND jenis = 'pengeluaran' AND tanggal BETWEEN ? AND ?
-            GROUP BY account_id
-        ) trx ON a.id = trx.account_id
-        -- Subquery untuk jurnal majemuk
-        LEFT JOIN (
-            SELECT jd.account_id, SUM(jd.debit - jd.kredit) as total
-            FROM jurnal_details jd
-            JOIN jurnal_entries je ON jd.jurnal_entry_id = je.id
-            WHERE je.user_id = ? AND je.tanggal BETWEEN ? AND ?
-            GROUP BY jd.account_id
-        ) jurnal ON a.id = jurnal.account_id
-        WHERE a.user_id = ? AND a.tipe_akun = 'Beban'
-        ORDER BY a.kode_akun ASC
-    ");
-    $stmt_beban->bind_param('ississi', $user_id, $tanggal_mulai, $tanggal_akhir, $user_id, $tanggal_mulai, $tanggal_akhir, $user_id);
-    $stmt_beban->execute();
-    $beban = $stmt_beban->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt_beban->close();
+        $pendapatan = [];
+        $beban = [];
+        foreach ($accounts as &$acc) {
+            $acc['total'] = (float)$acc['saldo_awal'] + (float)$acc['mutasi'];
+            if ($acc['tipe_akun'] === 'Pendapatan') {
+                $pendapatan[] = $acc;
+            } else {
+                $beban[] = $acc;
+            }
+        }
 
-    // 3. Hitung summary
-    $total_pendapatan = array_sum(array_column($pendapatan, 'total'));
-    $total_beban = array_sum(array_column($beban, 'total'));
-    $laba_bersih = $total_pendapatan - $total_beban;
+        $total_pendapatan = array_sum(array_column($pendapatan, 'total'));
+        $total_beban = array_sum(array_column($beban, 'total'));
+        $laba_bersih = $total_pendapatan - $total_beban;
 
-    $response = [
-        'status' => 'success',
-        'data' => [
+        return [
             'pendapatan' => $pendapatan,
             'beban' => $beban,
             'summary' => [
@@ -84,13 +65,20 @@ try {
                 'total_beban' => $total_beban,
                 'laba_bersih' => $laba_bersih
             ]
-        ]
-    ];
+        ];
+    }
 
-    echo json_encode($response);
+    $data_current = fetch_lr_data($conn, $user_id, $tanggal_mulai, $tanggal_akhir);
+    $response_data = ['current' => $data_current];
+
+    if ($is_comparison && $tanggal_mulai_2 && $tanggal_akhir_2) {
+        $data_previous = fetch_lr_data($conn, $user_id, $tanggal_mulai_2, $tanggal_akhir_2);
+        $response_data['previous'] = $data_previous;
+    }
+
+    echo json_encode(['status' => 'success', 'data' => $response_data]);
 
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }
-?>

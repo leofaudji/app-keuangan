@@ -73,6 +73,23 @@ try {
             exit;
         }
 
+        if ($action === 'get_accounts_for_consignment') {
+            $stmt = $conn->prepare("SELECT id, nama_akun, tipe_akun, is_kas FROM accounts WHERE user_id = ? ORDER BY kode_akun ASC");
+            $stmt->bind_param('i', $user_id);
+            $stmt->execute();
+            $all_accounts = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            $accounts = [
+                'kas' => array_values(array_filter($all_accounts, fn($acc) => $acc['is_kas'] == 1)),
+                'pendapatan' => array_values(array_filter($all_accounts, fn($acc) => $acc['tipe_akun'] == 'Pendapatan')),
+                'beban' => array_values(array_filter($all_accounts, fn($acc) => $acc['tipe_akun'] == 'Beban')),
+                'liabilitas' => array_values(array_filter($all_accounts, fn($acc) => $acc['tipe_akun'] == 'Liabilitas')),
+            ];
+            echo json_encode(['status' => 'success', 'data' => $accounts]);
+            exit;
+        }
+
         // Default GET action to fetch all settings
         $result = $conn->query("SELECT setting_key, setting_value FROM settings");
         $settings = [];
@@ -109,6 +126,7 @@ try {
         if (isset($_POST['cf_mapping'])) {
             $mappings = $_POST['cf_mapping'];
             $stmt = $conn->prepare("UPDATE accounts SET cash_flow_category = ? WHERE id = ? AND user_id = ?");
+            if (!$stmt) throw new Exception("Prepare statement failed: " . $conn->error);
             foreach ($mappings as $account_id => $category) {
                 $cat_value = empty($category) ? NULL : $category;
                 $stmt->bind_param('sii', $cat_value, $account_id, $user_id);
@@ -121,6 +139,43 @@ try {
         }
 
         $conn->begin_transaction();
+
+        // --- Handle Logo Upload ---
+        if (isset($_FILES['app_logo']) && $_FILES['app_logo']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['app_logo'];
+            $upload_dir = PROJECT_ROOT . '/uploads/settings/';
+            if (!is_dir($upload_dir)) {
+                if (!mkdir($upload_dir, 0775, true)) {
+                    throw new Exception("Gagal membuat direktori upload.");
+                }
+            }
+
+            // Validasi file
+            if ($file['size'] > 1 * 1024 * 1024) throw new Exception("Ukuran file logo terlalu besar. Maksimal 1MB.");
+            $allowed_types = ['image/png', 'image/jpeg'];
+            $file_type = mime_content_type($file['tmp_name']);
+            if (!in_array($file_type, $allowed_types)) throw new Exception("Tipe file logo tidak diizinkan. Gunakan file PNG atau JPG.");
+
+            // Hapus logo lama jika ada
+            $old_logo_path = get_setting('app_logo');
+            if ($old_logo_path && file_exists(PROJECT_ROOT . '/' . $old_logo_path)) {
+                unlink(PROJECT_ROOT . '/' . $old_logo_path);
+            }
+
+            // Buat nama file yang aman dan pindahkan
+            $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $safe_filename = 'app_logo_' . uniqid() . '.' . $extension;
+            $destination = $upload_dir . $safe_filename;
+            $db_path = 'uploads/settings/' . $safe_filename;
+
+            if (!move_uploaded_file($file['tmp_name'], $destination)) throw new Exception("Gagal memindahkan file logo yang diunggah.");
+
+            // Simpan path baru ke database
+            $stmt_logo = $conn->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('app_logo', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+            $stmt_logo->bind_param("s", $db_path);
+            $stmt_logo->execute();
+            $stmt_logo->close();
+        }
 
         // --- Handle Iuran Bulanan Change ---
         if (isset($_POST['monthly_fee']) && isset($_POST['fee_start_date'])) {

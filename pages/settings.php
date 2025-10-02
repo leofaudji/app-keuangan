@@ -20,13 +20,16 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 
 <ul class="nav nav-tabs" id="settingsTab" role="tablist">
   <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="general-settings-tab" data-bs-toggle="tab" data-bs-target="#general-settings" type="button" role="tab">Pengaturan Umum</button>
+    <button class="nav-link active" id="general-settings-tab" data-bs-toggle="tab" data-bs-target="#general-settings" type="button" role="tab">Umum</button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="transaksi-settings-tab" data-bs-toggle="tab" data-bs-target="#transaksi-settings" type="button" role="tab">Pengaturan Transaksi</button>
+    <button class="nav-link" id="transaksi-settings-tab" data-bs-toggle="tab" data-bs-target="#transaksi-settings" type="button" role="tab">Transaksi</button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="arus-kas-settings-tab" data-bs-toggle="tab" data-bs-target="#arus-kas-settings" type="button" role="tab">Pengaturan Arus Kas</button>
+    <button class="nav-link" id="arus-kas-settings-tab" data-bs-toggle="tab" data-bs-target="#arus-kas-settings" type="button" role="tab">Arus Kas</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="konsinyasi-settings-tab" data-bs-toggle="tab" data-bs-target="#konsinyasi-settings" type="button" role="tab">Konsinyasi</button>
   </li>
 </ul>
 
@@ -41,7 +44,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
                     </div>
                     <hr>
                     <button type="button" class="btn btn-primary" id="save-settings-btn">
-                        <i class="bi bi-save-fill"></i> Simpan Pengaturan Umum
+                        <i class="bi bi-save-fill"></i> Simpan Pengaturan
                     </button>
                 </form>
             </div>
@@ -57,7 +60,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
                         <div class="text-center p-5"><div class="spinner-border" role="status"><span class="visually-hidden">Memuat...</span></div></div>
                     </div>
                     <hr>
-                    <button type="button" class="btn btn-primary" id="save-transaksi-settings-btn"><i class="bi bi-save-fill"></i> Simpan Pengaturan Transaksi</button>
+                    <button type="button" class="btn btn-primary" id="save-transaksi-settings-btn"><i class="bi bi-save-fill"></i> Simpan Pengaturan</button>
                 </form>
             </div>
         </div>
@@ -79,8 +82,28 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
                     </div>
                     <hr>
                     <button type="button" class="btn btn-primary" id="save-arus-kas-settings-btn">
-                        <i class="bi bi-save-fill"></i> Simpan Pengaturan Arus Kas
+                        <i class="bi bi-save-fill"></i> Simpan Pengaturan
                     </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Pengaturan Konsinyasi -->
+    <div class="tab-pane fade" id="konsinyasi-settings" role="tabpanel">
+        <div class="card card-tab">
+            <div class="card-header">
+                Pemetaan Akun untuk Transaksi Konsinyasi
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info small">
+                    Pilih akun default yang akan digunakan saat mencatat penjualan barang konsinyasi.
+                </div>
+                <form id="konsinyasi-settings-form">
+                    <div id="konsinyasi-settings-container">
+                        <div class="text-center p-5"><div class="spinner-border"></div></div>
+                    </div>
+                    <hr><button type="button" class="btn btn-primary" id="save-konsinyasi-settings-btn"><i class="bi bi-save-fill"></i> Simpan Pengaturan</button>
                 </form>
             </div>
         </div>
