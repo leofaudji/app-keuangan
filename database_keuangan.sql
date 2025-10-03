@@ -1,7 +1,7 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- Hapus tabel lama jika ada
-DROP TABLE IF EXISTS `transaksi`, `anggaran`, `users`, `settings`, `accounts`, `activity_log`,`jurnal_entries`,`jurnal_details`,`general_ledger`, `suppliers`, `consignment_items`;
+DROP TABLE IF EXISTS `transaksi`, `anggaran`, `users`, `settings`, `accounts`, `activity_log`,`jurnal_entries`,`jurnal_details`,`general_ledger`, `suppliers`, `consignment_items`,`recurring_templates`, `bank_reconciliations`, `bank_statement_lines`, `fixed_assets`, `customers`, `invoices`, `invoice_items`, `payments_received`;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -183,11 +183,10 @@ CREATE TABLE `anggaran` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `account_id` int(11) NOT NULL,
-  `periode_bulan` tinyint(2) NOT NULL,
   `periode_tahun` smallint(4) NOT NULL,
   `jumlah_anggaran` decimal(15,2) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `user_account_periode` (`user_id`,`account_id`,`periode_tahun`,`periode_bulan`),
+  UNIQUE KEY `user_account_periode` (`user_id`,`account_id`,`periode_tahun`),
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -212,7 +211,7 @@ CREATE TABLE `activity_log` (
 
 
 -- Data Awal
-INSERT INTO `users` (`username`, `password`, `nama_lengkap`, `role`) VALUES ('admin', '{$default_password_hash}', 'Administrator', 'admin');
+INSERT INTO `users` (`id`, `username`, `password`, `nama_lengkap`, `role`) VALUES (1, 'admin', '{$default_password_hash}', 'Administrator', 'admin'), (2, 'user', '{$default_password_hash}', 'User Biasa', 'user');
 
 -- Data Demo Bagan Akun (COA) untuk user 'admin' (user_id = 1)
 -- Saldo awal neraca sudah diatur di sini.
@@ -225,7 +224,7 @@ INSERT INTO `accounts` (`id`, `user_id`, `parent_id`, `kode_akun`, `nama_akun`, 
             (103, 1, 102, '1-1110', 'Kas di Tangan', 'Aset', 'Debit', NULL, 1, 2000000.00),
             (104, 1, 102, '1-1120', 'Kas di Bank', 'Aset', 'Debit', NULL, 1, 10000000.00),
         (105, 1, 101, '1-1200', 'Persediaan Barang Dagang', 'Aset', 'Debit', 'Operasi', 0, 15000000.00),
-    (106, 1, 100, '1-2000', 'Aset Tetap', 'Aset', 'Debit', NULL, 0, 0.00),
+    (106, 1, 100, '1-2000', 'Aset Tetap', 'Aset', 'Debit', 'Investasi', 0, 0.00),
         (107, 1, 106, '1-2100', 'Peralatan Toko', 'Aset', 'Debit', 'Investasi', 0, 5000000.00),
 
 -- Liabilitas
@@ -242,6 +241,7 @@ INSERT INTO `accounts` (`id`, `user_id`, `parent_id`, `kode_akun`, `nama_akun`, 
 -- Pendapatan
 (400, 1, NULL, '4', 'Pendapatan', 'Pendapatan', 'Kredit', NULL, 0, 0.00),
     (401, 1, 400, '4-1000', 'Pendapatan Penjualan Barang', 'Pendapatan', 'Kredit', 'Operasi', 0, 0.00),
+    (402, 1, 400, '4-2000', 'Pendapatan Konsinyasi', 'Pendapatan', 'Kredit', 'Operasi', 0, 0.00),
 
 -- Beban Pokok Penjualan (COGS)
 (500, 1, NULL, '5', 'Beban Pokok Penjualan', 'Beban', 'Debit', 'Operasi', 0, 0.00),
@@ -286,7 +286,8 @@ INSERT INTO `jurnal_entries` (`id`, `user_id`, `tanggal`, `keterangan`) VALUES
 (104, 1, CONCAT(YEAR(CURDATE()), '-04-05'), 'Pembelian barang dagang (seragam) dari Supplier B secara kredit'),
 (105, 1, CONCAT(YEAR(CURDATE()), '-04-18'), 'Pencatatan HPP atas penjualan tunai April'),
 (106, 1, CONCAT(YEAR(CURDATE()), '-07-15'), 'Pencatatan HPP atas penjualan tahun ajaran baru'),
-(107, 1, CONCAT(YEAR(CURDATE()), '-08-10'), 'Pencatatan HPP atas penjualan tunai Agustus');
+(107, 1, CONCAT(YEAR(CURDATE()), '-08-10'), 'Pencatatan HPP atas penjualan tunai Agustus'),
+(108, 1, CONCAT(YEAR(CURDATE()), '-03-01'), 'Pembelian Komputer Baru untuk Kantor');
 
 INSERT INTO `jurnal_details` (`jurnal_entry_id`, `account_id`, `debit`, `kredit`) VALUES
 -- Jurnal 101: Beli persediaan kredit
@@ -309,9 +310,36 @@ INSERT INTO `jurnal_details` (`jurnal_entry_id`, `account_id`, `debit`, `kredit`
 (106, 105, 0.00, 15000000.00), -- (Cr) Persediaan Barang Dagang
 -- Jurnal 107: HPP Agustus (asumsi 60% dari penjualan 11jt)
 (107, 500, 6600000.00, 0.00), -- (Db) Beban Pokok Penjualan
-(107, 105, 0.00, 6600000.00); -- (Cr) Persediaan Barang Dagang
+(107, 105, 0.00, 6600000.00), -- (Cr) Persediaan Barang Dagang
+-- Jurnal 108: Beli Aset
+(108, 107, 7000000.00, 0.00), -- (Db) Peralatan Toko
+(108, 104, 0.00, 7000000.00); -- (Cr) Kas di Bank
 
 INSERT INTO `settings` (`setting_key`, `setting_value`) VALUES
 ('app_name', 'UangKu'),
 ('notification_interval', '60000'),
-('retained_earnings_account_id', '303');
+('retained_earnings_account_id', '303'),
+('period_lock_date', CONCAT(YEAR(CURDATE())-1, '-12-31')),
+('consignment_cash_account', '103'),
+('consignment_revenue_account', '402'),
+('consignment_cogs_account', '501'),
+('consignment_payable_account', '203');
+
+-- Data Demo Konsinyasi
+INSERT INTO `suppliers` (`id`, `user_id`, `nama_pemasok`, `kontak`) VALUES
+(1, 1, 'Penerbit Erlangga', '021-8717006'),
+(2, 1, 'CV. Seragam Jaya', '08123456789');
+
+INSERT INTO `consignment_items` (`id`, `user_id`, `supplier_id`, `nama_barang`, `harga_jual`, `harga_beli`, `stok_awal`, `tanggal_terima`) VALUES
+(1, 1, 1, 'Buku Tulis Sinar Dunia 38 Lbr', 3500.00, 2500.00, 100, CONCAT(YEAR(CURDATE()), '-01-05')),
+(2, 1, 2, 'Seragam SD Merah Putih', 75000.00, 60000.00, 50, CONCAT(YEAR(CURDATE()), '-01-05'));
+
+-- Data Demo Anggaran
+INSERT INTO `anggaran` (`user_id`, `account_id`, `periode_tahun`, `jumlah_anggaran`) VALUES
+(1, 601, YEAR(CURDATE()), 18000000.00), -- Gaji: 1.5jt/bulan * 12
+(1, 602, YEAR(CURDATE()), 3600000.00),  -- Listrik: 300rb/bulan * 12
+(1, 603, YEAR(CURDATE()), 1200000.00); -- Perlengkapan: 100rb/bulan * 12
+
+-- Data Demo Transaksi Berulang
+INSERT INTO `recurring_templates` (`user_id`, `name`, `frequency_unit`, `frequency_interval`, `start_date`, `next_run_date`, `template_type`, `template_data`) VALUES
+(1, 'Beban Sewa Toko Bulanan', 'month', 1, CONCAT(YEAR(CURDATE()), '-01-25'), CONCAT(YEAR(CURDATE()), '-01-25'), 'jurnal', '{"keterangan": "Pembayaran sewa toko bulanan", "lines": [{"account_id": "605", "debit": 500000, "kredit": 0}, {"account_id": "104", "debit": 0, "kredit": 500000}]}');

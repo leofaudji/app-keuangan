@@ -39,7 +39,7 @@ $router->get('/entri-jurnal', 'pages/entri_jurnal.php', ['auth']);
 $router->get('/coa', 'pages/coa.php', ['auth']);
 $router->get('/saldo-awal-neraca', 'pages/saldo_awal_neraca.php', ['auth']);
 $router->get('/saldo-awal-lr', 'pages/saldo_awal_lr.php', ['auth']);
-$router->get('/laporan', 'pages/laporan.php', ['auth']);
+$router->get('/laporan', 'pages/laporan.php', ['auth']); 
 $router->get('/anggaran', 'pages/anggaran.php', ['auth']);
 $router->get('/tutup-buku', 'pages/tutup_buku.php', ['auth', 'admin']);
 $router->get('/laporan-laba-ditahan', 'pages/laporan_laba_ditahan.php', ['auth']);

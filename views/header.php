@@ -68,18 +68,6 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
             <a class="nav-link" href="<?= base_url('/transaksi-berulang') ?>"><i class="bi bi-arrow-repeat"></i> Transaksi Berulang</a>
         </li>
 
-        <!-- Master Data -->
-        <li class="sidebar-header">Master Data</li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/coa') ?>"><i class="bi bi-journal-bookmark-fill"></i> Bagan Akun (COA)</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/saldo-awal-neraca') ?>"><i class="bi bi-journal-check"></i> Saldo Awal Neraca</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/saldo-awal-lr') ?>"><i class="bi bi-graph-up-arrow"></i> Saldo Awal L/R</a>
-        </li>
-
         <!-- Laporan & Analisis -->
         <li class="sidebar-header">Laporan & Analisis</li>
         <li class="nav-item">
@@ -95,10 +83,25 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
             <a class="nav-link" href="<?= base_url('/laporan-laba-ditahan') ?>"><i class="bi bi-graph-up"></i> Laporan Laba Ditahan</a>
         </li>
         <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/anggaran') ?>"><i class="bi bi-bullseye"></i> Anggaran</a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/laporan-harian') ?>"><i class="bi bi-calendar-day"></i> Laporan Harian</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/analisis-rasio') ?>"><i class="bi bi-pie-chart-fill"></i> Analisis Rasio</a>
+        </li>
+
+        <!-- Master Data -->
+        <li class="sidebar-header">Master Data</li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/coa') ?>"><i class="bi bi-journal-bookmark-fill"></i> Bagan Akun (COA)</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/saldo-awal-neraca') ?>"><i class="bi bi-journal-check"></i> Saldo Awal Neraca</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/saldo-awal-lr') ?>"><i class="bi bi-graph-up-arrow"></i> Saldo Awal L/R</a>
         </li>
 
         <!-- Menu Khusus Admin -->

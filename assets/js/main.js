@@ -224,6 +224,8 @@ function runPageScripts(path) {
         initAnalisisRasioPage();
     } else if (cleanPath === '/activity-log') {
         initActivityLogPage();
+    } else if (cleanPath === '/anggaran') {
+        initAnggaranPage();
     } else if (cleanPath === '/users') {
         initUsersPage();
     }
@@ -2074,6 +2076,168 @@ function initAnalisisRasioPage() {
     runAnalysis(); // Initial load
 }
 
+function initAnggaranPage() {
+    const yearFilter = document.getElementById('anggaran-tahun-filter');
+    const monthFilter = document.getElementById('anggaran-bulan-filter');
+    const tampilkanBtn = document.getElementById('anggaran-tampilkan-btn');
+    const reportTableBody = document.getElementById('anggaran-report-table-body');
+    const chartCanvas = document.getElementById('anggaran-chart');
+    const modalEl = document.getElementById('anggaranModal');
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    const modalTahunLabel = document.getElementById('modal-tahun-label');
+    const managementContainer = document.getElementById('anggaran-management-container');
+    const saveAnggaranBtn = document.getElementById('save-anggaran-btn');
+
+    let budgetChart = null;
+
+    if (!yearFilter || !reportTableBody) return;
+
+    const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+    function setupFilters() {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+
+        for (let i = 0; i < 5; i++) {
+            yearFilter.add(new Option(currentYear - i, currentYear - i));
+        }
+        const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        months.forEach((month, index) => {
+            monthFilter.add(new Option(month, index + 1));
+        });
+
+        yearFilter.value = currentYear;
+        monthFilter.value = currentMonth;
+    }
+
+    async function loadReport() {
+        const selectedYear = yearFilter.value;
+        const selectedMonth = monthFilter.value;
+        reportTableBody.innerHTML = '<tr><td colspan="5" class="text-center p-5"><div class="spinner-border"></div></td></tr>';
+        try {
+            const response = await fetch(`${basePath}/api/anggaran?action=get_report&tahun=${selectedYear}&bulan=${selectedMonth}`);
+            const result = await response.json();
+
+            // Update Summary Cards
+            if (result.status === 'success' && result.summary) {
+                document.getElementById('summary-total-anggaran').textContent = currencyFormatter.format(result.summary.total_anggaran);
+                document.getElementById('summary-total-realisasi').textContent = currencyFormatter.format(result.summary.total_realisasi);
+                document.getElementById('summary-sisa-anggaran').textContent = currencyFormatter.format(result.summary.total_sisa);
+            }
+
+            reportTableBody.innerHTML = '';
+
+            // Update Chart
+            if (budgetChart) {
+                budgetChart.destroy();
+            }
+            if (result.status === 'success' && result.data.length > 0) {
+                const labels = result.data.map(item => item.nama_akun);
+                const budgetData = result.data.map(item => item.anggaran_bulanan);
+                const realizationData = result.data.map(item => item.realisasi_belanja);
+
+                budgetChart = new Chart(chartCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Anggaran',
+                                data: budgetData,
+                                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Realisasi',
+                                data: realizationData,
+                                backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+                });
+            }
+
+            if (result.status === 'success' && result.data.length > 0) {
+                result.data.forEach(item => {
+                    const percentage = parseFloat(item.persentase);
+                    let progressBarColor = 'bg-success';
+                    if (percentage > 75) progressBarColor = 'bg-warning';
+                    if (percentage >= 100) progressBarColor = 'bg-danger';
+
+                    const row = `
+                        <tr>
+                            <td>${item.nama_akun}</td>
+                            <td class="text-end">${currencyFormatter.format(item.anggaran_bulanan)}</td>
+                            <td class="text-end">${currencyFormatter.format(item.realisasi_belanja)}</td>
+                            <td class="text-end fw-bold ${item.sisa_anggaran < 0 ? 'text-danger' : ''}">${currencyFormatter.format(item.sisa_anggaran)}</td>
+                            <td>
+                                <div class="progress" role="progressbar" style="height: 20px;">
+                                    <div class="progress-bar ${progressBarColor}" style="width: ${Math.min(percentage, 100)}%">${percentage.toFixed(1)}%</div>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    reportTableBody.insertAdjacentHTML('beforeend', row);
+                });
+            } else {
+                reportTableBody.innerHTML = '<tr><td colspan="5" class="text-center">Belum ada data anggaran untuk periode ini.</td></tr>';
+            }
+        } catch (error) {
+            reportTableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Gagal memuat laporan: ${error.message}</td></tr>`;
+        }
+    }
+
+    async function loadBudgetManagement() {
+        const selectedYear = yearFilter.value;
+        modalTahunLabel.textContent = selectedYear;
+        managementContainer.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
+        try {
+            const response = await fetch(`${basePath}/api/anggaran?action=list_budget&tahun=${selectedYear}`);
+            const result = await response.json();
+            managementContainer.innerHTML = '';
+            if (result.status === 'success' && result.data.length > 0) {
+                result.data.forEach(item => {
+                    const itemHtml = `
+                        <div class="input-group mb-2">
+                            <span class="input-group-text" style="width: 250px; font-size: 0.9rem;">${item.nama_akun}</span>
+                            <input type="number" class="form-control budget-amount-input" name="budgets[${item.account_id}]" value="${item.jumlah_anggaran}" placeholder="Anggaran Tahunan">
+                        </div>
+                    `;
+                    managementContainer.insertAdjacentHTML('beforeend', itemHtml);
+                });
+            } else {
+                managementContainer.innerHTML = '<p class="text-muted text-center">Tidak ada akun beban yang dapat dianggarkan.</p>';
+            }
+        } catch (error) {
+            managementContainer.innerHTML = `<div class="alert alert-danger">Gagal memuat data anggaran.</div>`;
+        }
+    }
+
+    saveAnggaranBtn.addEventListener('click', async () => {
+        const form = document.getElementById('anggaran-management-form');
+        const formData = new FormData(form);
+        formData.append('action', 'save_budgets');
+        formData.append('tahun', yearFilter.value);
+
+        const response = await fetch(`${basePath}/api/anggaran`, { method: 'POST', body: formData });
+        const result = await response.json();
+        showToast(result.message, result.status === 'success' ? 'success' : 'error');
+        if (result.status === 'success') modal.hide();
+    });
+
+    tampilkanBtn.addEventListener('click', loadReport);
+    modalEl.addEventListener('show.bs.modal', loadBudgetManagement);
+    modalEl.addEventListener('hidden.bs.modal', loadReport);
+
+    setupFilters();
+    loadReport();
+}
+
 function initTransaksiBerulangPage() {
     const tableBody = document.getElementById('recurring-table-body');
     if (!tableBody) return;
@@ -2225,121 +2389,6 @@ function initActivityLogPage() {
     loadLogs();
 }
 
-function initAnggaranPage() {
-    const yearFilter = document.getElementById('anggaran-tahun-filter');
-    const monthFilter = document.getElementById('anggaran-bulan-filter');
-    const reportTableBody = document.getElementById('anggaran-report-table-body');
-    const modalEl = document.getElementById('anggaranModal');
-    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-    const modalTahunLabel = document.getElementById('modal-tahun-label');
-    const managementContainer = document.getElementById('anggaran-management-container');
-    const saveAnggaranBtn = document.getElementById('save-anggaran-btn');
-
-    if (!yearFilter || !reportTableBody) return;
-
-    const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
-
-    function setupFilters() {
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth() + 1;
-
-        for (let i = 0; i < 5; i++) {
-            yearFilter.add(new Option(currentYear - i, currentYear - i));
-        }
-        const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-        months.forEach((month, index) => {
-            monthFilter.add(new Option(month, index + 1));
-        });
-
-        yearFilter.value = currentYear;
-        monthFilter.value = currentMonth;
-    }
-
-    async function loadReport() {
-        const selectedYear = yearFilter.value;
-        const selectedMonth = monthFilter.value;
-        reportTableBody.innerHTML = '<tr><td colspan="5" class="text-center p-5"><div class="spinner-border"></div></td></tr>';
-        try {
-            const response = await fetch(`${basePath}/api/anggaran?action=get_report&tahun=${selectedYear}&bulan=${selectedMonth}`);
-            const result = await response.json();
-            reportTableBody.innerHTML = '';
-            if (result.status === 'success' && result.data.length > 0) {
-                result.data.forEach(item => {
-                    const percentage = parseFloat(item.persentase);
-                    let progressBarColor = 'bg-success';
-                    if (percentage > 75) progressBarColor = 'bg-warning';
-                    if (percentage > 95) progressBarColor = 'bg-danger';
-
-                    const row = `
-                        <tr>
-                            <td>${item.nama_akun}</td>
-                            <td class="text-end">${currencyFormatter.format(item.anggaran_bulanan)}</td>
-                            <td class="text-end">${currencyFormatter.format(item.realisasi_belanja)}</td>
-                            <td class="text-end fw-bold ${item.sisa_anggaran < 0 ? 'text-danger' : ''}">${currencyFormatter.format(item.sisa_anggaran)}</td>
-                            <td>
-                                <div class="progress" role="progressbar" style="height: 20px;">
-                                    <div class="progress-bar ${progressBarColor}" style="width: ${Math.min(percentage, 100)}%">${percentage.toFixed(1)}%</div>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                    reportTableBody.insertAdjacentHTML('beforeend', row);
-                });
-            } else {
-                reportTableBody.innerHTML = '<tr><td colspan="5" class="text-center">Belum ada data anggaran untuk periode ini.</td></tr>';
-            }
-        } catch (error) {
-            reportTableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Gagal memuat laporan: ${error.message}</td></tr>`;
-        }
-    }
-
-    async function loadBudgetManagement() {
-        const selectedYear = yearFilter.value;
-        modalTahunLabel.textContent = selectedYear;
-        managementContainer.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
-        try {
-            const response = await fetch(`${basePath}/api/anggaran?action=list_budget&tahun=${selectedYear}`);
-            const result = await response.json();
-            managementContainer.innerHTML = '';
-            if (result.status === 'success' && result.data.length > 0) {
-                result.data.forEach(item => {
-                    const itemHtml = `
-                        <div class="input-group mb-2">
-                            <span class="input-group-text" style="width: 200px;">${item.nama_akun}</span>
-                            <input type="number" class="form-control budget-amount-input" name="budgets[${item.account_id}]" value="${item.jumlah_anggaran}" placeholder="Anggaran Tahunan">
-                        </div>
-                    `;
-                    managementContainer.insertAdjacentHTML('beforeend', itemHtml);
-                });
-            } else {
-                managementContainer.innerHTML = '<p class="text-muted text-center">Tidak ada akun beban yang dapat dianggarkan.</p>';
-            }
-        } catch (error) {
-            managementContainer.innerHTML = `<div class="alert alert-danger">Gagal memuat data anggaran.</div>`;
-        }
-    }
-
-    saveAnggaranBtn.addEventListener('click', async () => {
-        const form = document.getElementById('anggaran-management-form');
-        const formData = new FormData(form);
-        formData.append('action', 'save_budgets');
-        formData.append('tahun', yearFilter.value);
-
-        const response = await fetch(`${basePath}/api/anggaran`, { method: 'POST', body: formData });
-        const result = await response.json();
-        showToast(result.message, result.status === 'success' ? 'success' : 'error');
-        if (result.status === 'success') modal.hide();
-    });
-
-    yearFilter.addEventListener('change', loadReport);
-    monthFilter.addEventListener('change', loadReport);
-    modalEl.addEventListener('show.bs.modal', loadBudgetManagement);
-    modalEl.addEventListener('hidden.bs.modal', loadReport);
-
-    setupFilters();
-    loadReport();
-}
 
 function initKonsinyasiPage() {
     // --- Element Selectors ---
@@ -3799,175 +3848,6 @@ function initMyProfilePage() {
         }
     });
 }
-
-
-function initAnggaranPage() {
-    const yearFilter = document.getElementById('anggaran-tahun-filter');
-    const reportTableBody = document.getElementById('anggaran-report-table-body');
-    const modalEl = document.getElementById('anggaranModal');    
-    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-    const modalTahunLabel = document.getElementById('modal-tahun-label');
-    const managementContainer = document.getElementById('anggaran-management-container');
-    const addAnggaranForm = document.getElementById('add-anggaran-form');
-
-    if (!yearFilter || !reportTableBody) return;
-
-    const currencyFormatter = new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 0
-    });
-
-    // Populate year filter
-    const currentYear = new Date().getFullYear();
-    for (let i = 0; i < 5; i++) {
-        const year = currentYear - i;
-        yearFilter.add(new Option(year, year));
-    }
-
-    async function loadReport() {
-        const selectedYear = yearFilter.value;
-        reportTableBody.innerHTML = '<tr><td colspan="5" class="text-center p-5"><div class="spinner-border"></div></td></tr>';
-        try {
-            const response = await fetch(`${basePath}/api/anggaran?action=get_report&tahun=${selectedYear}`);
-            const result = await response.json();
-            reportTableBody.innerHTML = '';
-            if (result.status === 'success' && result.data.length > 0) {
-                result.data.forEach(item => {
-                    const percentage = item.persentase;
-                    let progressBarColor = 'bg-success';
-                    if (percentage > 75) progressBarColor = 'bg-warning';
-                    if (percentage > 95) progressBarColor = 'bg-danger';
-
-                    const row = `
-                        <tr>
-                            <td>${item.kategori}</td>
-                            <td class="text-end">${currencyFormatter.format(item.jumlah_anggaran)}</td>
-                            <td class="text-end">${currencyFormatter.format(item.realisasi_belanja)}</td>
-                            <td class="text-end fw-bold ${item.sisa_anggaran < 0 ? 'text-danger' : ''}">${currencyFormatter.format(item.sisa_anggaran)}</td>
-                            <td>
-                                <div class="progress" role="progressbar" style="height: 20px;">
-                                    <div class="progress-bar ${progressBarColor}" style="width: ${Math.min(percentage, 100)}%">${percentage.toFixed(1)}%</div>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                    reportTableBody.insertAdjacentHTML('beforeend', row);
-                });
-            } else {
-                reportTableBody.innerHTML = '<tr><td colspan="5" class="text-center">Belum ada data anggaran untuk tahun ini.</td></tr>';
-            }
-        } catch (error) {
-            reportTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Gagal memuat laporan.</td></tr>';
-        }
-    }
-
-    async function loadBudgetManagement() {
-        const selectedYear = yearFilter.value;
-        modalTahunLabel.textContent = selectedYear;
-        managementContainer.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
-        try {
-            const response = await fetch(`${basePath}/api/anggaran?action=list_budget&tahun=${selectedYear}`);
-            const result = await response.json();
-            managementContainer.innerHTML = '';
-            if (result.status === 'success' && result.data.length > 0) {
-                result.data.forEach(item => {
-                    const itemHtml = `
-                        <div class="input-group mb-2">
-                            <span class="input-group-text" style="width: 150px;">${item.kategori}</span>
-                            <input type="number" class="form-control budget-amount-input" data-id="${item.id}" value="${item.jumlah_anggaran}">
-                            <button class="btn btn-outline-danger delete-budget-btn" data-id="${item.id}" title="Hapus"><i class="bi bi-trash"></i></button>
-                        </div>
-                    `;
-                    managementContainer.insertAdjacentHTML('beforeend', itemHtml);
-                });
-            } else {
-                managementContainer.innerHTML = '<p class="text-muted text-center">Belum ada anggaran yang ditetapkan untuk tahun ini.</p>';
-            }
-        } catch (error) {
-            managementContainer.innerHTML = '<div class="alert alert-danger">Gagal memuat data anggaran.</div>';
-        }
-    }
-
-    async function loadExpenseCategoriesForSelect() {
-        const kategoriSelect = document.getElementById('new-kategori');
-        if (!kategoriSelect) return;
-        kategoriSelect.innerHTML = '<option value="">Memuat...</option>';
-        try {
-            const response = await fetch(`${basePath}/api/kategori-kas`);
-            const result = await response.json();
-            kategoriSelect.innerHTML = '<option value="">-- Pilih Kategori --</option>';
-            if (result.status === 'success' && result.data.keluar) {
-                result.data.keluar.forEach(cat => kategoriSelect.add(new Option(cat.nama_kategori, cat.nama_kategori)));
-            }
-        } catch (error) {
-            kategoriSelect.innerHTML = '<option value="">Gagal memuat</option>';
-        }
-    }
-
-    yearFilter.addEventListener('change', loadReport);
-
-    modalEl.addEventListener('show.bs.modal', loadBudgetManagement);
-    modalEl.addEventListener('hidden.bs.modal', loadReport); // Refresh report after closing modal
-
-    addAnggaranForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const kategori = document.getElementById('new-kategori').value.trim();
-        const jumlah = document.getElementById('new-jumlah').value;
-        const tahun = yearFilter.value;
-
-        const formData = new FormData();
-        formData.append('action', 'add_budget');
-        formData.append('tahun', tahun);
-        formData.append('kategori', kategori);
-        formData.append('jumlah', jumlah);
-
-        const response = await fetch(`${basePath}/api/anggaran`, { method: 'POST', body: formData });
-        const result = await response.json();
-        showToast(result.message, result.status === 'success' ? 'success' : 'error');
-        if (result.status === 'success') {
-            addAnggaranForm.reset();
-            document.getElementById('new-kategori').selectedIndex = 0; // Reset dropdown
-            loadBudgetManagement();
-        }
-    });
-
-    managementContainer.addEventListener('change', async (e) => {
-        if (e.target.classList.contains('budget-amount-input')) {
-            const id = e.target.dataset.id;
-            const jumlah = e.target.value;
-
-            const formData = new FormData();
-            formData.append('action', 'save_budget');
-            formData.append('id', id);
-            formData.append('jumlah', jumlah);
-
-            const response = await fetch(`${basePath}/api/anggaran`, { method: 'POST', body: formData });
-            const result = await response.json();
-            showToast(result.message, result.status === 'success' ? 'success' : 'error');
-        }
-    });
-
-    managementContainer.addEventListener('click', async (e) => {
-        const deleteBtn = e.target.closest('.delete-budget-btn');
-        if (deleteBtn) {
-            if (confirm('Yakin ingin menghapus kategori anggaran ini?')) {
-                const id = deleteBtn.dataset.id;
-                const formData = new FormData();
-                formData.append('action', 'delete_budget');
-                formData.append('id', id);
-                const response = await fetch(`${basePath}/api/anggaran`, { method: 'POST', body: formData });
-                const result = await response.json();
-                showToast(result.message, result.status === 'success' ? 'success' : 'error');
-                if (result.status === 'success') loadBudgetManagement();
-            }
-        }
-    });
-
-    loadReport();
-    loadExpenseCategoriesForSelect(); // Panggil fungsi ini saat halaman anggaran diinisialisasi
-}
-
 
 /**
  * Calculates time since a given date.
