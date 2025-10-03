@@ -15,7 +15,7 @@ class BukuBesarDataHandler {
 
 try {
     $conn = Database::getInstance()->getConnection();
-    $user_id = $_SESSION['user_id'];
+    $user_id = 1; // Semua user mengakses data yang sama
     $account_id = (int)($_GET['account_id'] ?? 0);
     $start_date = $_GET['start_date'] ?? date('Y-m-01');
     $end_date = $_GET['end_date'] ?? date('Y-m-t');

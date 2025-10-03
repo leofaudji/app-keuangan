@@ -28,7 +28,7 @@ class DaftarJurnalReportBuilder implements ReportBuilderInterface
             $period = 'Periode: ' . date('d M Y', strtotime($start_date)) . ' - ' . date('d M Y', strtotime($end_date));
         }
         $this->pdf->report_period = $period;
-        $this->pdf->AddPage('L'); // Landscape
+        $this->pdf->AddPage('P'); // Landscape
 
         $data = $this->fetchData($user_id, $search, $start_date, $end_date);
         $this->render($data);
@@ -77,12 +77,12 @@ class DaftarJurnalReportBuilder implements ReportBuilderInterface
     {
         $this->pdf->SetFont('Helvetica', 'B', 9);
         $this->pdf->SetFillColor(230, 230, 230);
-        $this->pdf->Cell(30, 8, 'No. Referensi', 1, 0, 'C', true);
+        $this->pdf->Cell(20, 8, 'No. Referensi', 1, 0, 'C', true);
         $this->pdf->Cell(25, 8, 'Tanggal', 1, 0, 'C', true);
-        $this->pdf->Cell(80, 8, 'Keterangan', 1, 0, 'C', true);
-        $this->pdf->Cell(60, 8, 'Akun', 1, 0, 'C', true);
-        $this->pdf->Cell(35, 8, 'Debit', 1, 0, 'C', true);
-        $this->pdf->Cell(35, 8, 'Kredit', 1, 1, 'C', true);
+        $this->pdf->Cell(50, 8, 'Keterangan', 1, 0, 'C', true);
+        $this->pdf->Cell(50, 8, 'Akun', 1, 0, 'C', true);
+        $this->pdf->Cell(25, 8, 'Debit', 1, 0, 'C', true);
+        $this->pdf->Cell(25, 8, 'Kredit', 1, 1, 'C', true);
 
         $this->pdf->SetFont('Helvetica', '', 8);
         $lastRef = null;
@@ -90,15 +90,15 @@ class DaftarJurnalReportBuilder implements ReportBuilderInterface
             $isFirstRow = $line['ref'] !== $lastRef;
             $border = $isFirstRow ? 'LTR' : 'LR';
 
-            $this->pdf->Cell(30, 6, $isFirstRow ? $line['ref'] : '', $border, 0);
+            $this->pdf->Cell(20, 6, $isFirstRow ? $line['ref'] : '', $border, 0);
             $this->pdf->Cell(25, 6, $isFirstRow ? date('d-m-Y', strtotime($line['tanggal'])) : '', $border, 0);
-            $this->pdf->Cell(80, 6, $isFirstRow ? $line['keterangan'] : '', $border, 0);
-            $this->pdf->Cell(60, 6, $line['nama_akun'], $border, 0);
-            $this->pdf->Cell(35, 6, $line['debit'] > 0 ? format_currency_pdf($line['debit']) : '', $border, 0, 'R');
-            $this->pdf->Cell(35, 6, $line['kredit'] > 0 ? format_currency_pdf($line['kredit']) : '', $border, 1, 'R');
+            $this->pdf->Cell(50, 6, $isFirstRow ? $line['keterangan'] : '', $border, 0);
+            $this->pdf->Cell(50, 6, $line['nama_akun'], $border, 0);
+            $this->pdf->Cell(25, 6, $line['debit'] > 0 ? format_currency_pdf($line['debit']) : '', $border, 0, 'R');
+            $this->pdf->Cell(25, 6, $line['kredit'] > 0 ? format_currency_pdf($line['kredit']) : '', $border, 1, 'R');
             $lastRef = $line['ref'];
         }
         // Add bottom border to the last row
-        $this->pdf->Cell(265, 0, '', 'T', 1);
+        $this->pdf->Cell(195, 0, '', 'T', 1);
     }
 }

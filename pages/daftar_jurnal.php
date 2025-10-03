@@ -60,8 +60,8 @@ if (!$is_spa_request) {
                         <th>Akun</th>
                         <th class="text-end">Debit</th>
                         <th class="text-end">Kredit</th>
-                        <th>User</th>
-                        <th class="text-end">Aksi</th>
+                        <th>Info</th>
+                        <th class="text-end" style="width: 10%;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody id="daftar-jurnal-table-body">

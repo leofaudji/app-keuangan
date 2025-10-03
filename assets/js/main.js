@@ -212,10 +212,18 @@ function runPageScripts(path) {
         initMyProfilePage();
     } else if (cleanPath === '/daftar-jurnal') {
         initDaftarJurnalPage();
-    } else if (cleanPath === '/anggaran') {
-        initAnggaranPage();
     } else if (cleanPath === '/konsinyasi') {
         initKonsinyasiPage();
+    } else if (cleanPath === '/transaksi-berulang') {
+        initTransaksiBerulangPage();
+    } else if (cleanPath === '/laporan-laba-ditahan') {
+        initLaporanLabaDitahanPage();
+    } else if (cleanPath === '/tutup-buku') {
+        initTutupBukuPage();
+    } else if (cleanPath === '/analisis-rasio') {
+        initAnalisisRasioPage();
+    } else if (cleanPath === '/activity-log') {
+        initActivityLogPage();
     } else if (cleanPath === '/users') {
         initUsersPage();
     }
@@ -573,6 +581,15 @@ function initTransaksiPage() {
     const paginationContainer = document.getElementById('transaksi-pagination');
 
     if (!tableBody) return;
+    let periodLockDate = null;
+
+    // Cek jika URL memiliki hash untuk memfilter transaksi tertentu
+    if (window.location.hash && window.location.hash.startsWith('#tx-')) {
+        const txId = window.location.hash.substring(4); // Hapus '#tx-'
+        searchInput.value = txId;
+        // Hapus hash dari URL agar tidak mengganggu navigasi selanjutnya
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
 
     // Load saved limit from localStorage
     const savedLimit = localStorage.getItem('transaksi_limit');
@@ -637,15 +654,24 @@ function initTransaksiPage() {
             limit: limitSelect.value,
             search: searchInput.value,
             bulan: bulanFilter.value,
-            tahun: tahunFilter.value,
+            tahun: tahunFilter.value, 
             akun_kas: akunKasFilter.value,
         });
 
         tableBody.innerHTML = `<tr><td colspan="7" class="text-center p-5"><div class="spinner-border"></div></td></tr>`;
+        
         try {
-            const response = await fetch(`${basePath}/api/transaksi?${params.toString()}`);
-            const result = await response.json();
+            const [transaksiRes, settingsRes] = await Promise.all([
+                fetch(`${basePath}/api/transaksi?${params.toString()}`),
+                fetch(`${basePath}/api/settings`) // Ambil juga data settings
+            ]);
+            const result = await transaksiRes.json();
+            const settingsResult = await settingsRes.json();
+
             if (result.status !== 'success') throw new Error(result.message);
+            if (settingsResult.status === 'success' && settingsResult.data.period_lock_date) {
+                periodLockDate = new Date(settingsResult.data.period_lock_date);
+            }
 
             tableBody.innerHTML = '';
             if (result.data.length > 0) {
@@ -667,28 +693,55 @@ function initTransaksiPage() {
                         jumlahDisplay = `<span class="text-info fw-bold">${jumlahFormatted}</span>`;
                     }
 
+                    // Info Audit (Created/Updated)
+                    const createdAt = new Date(tx.created_at);
+                    const updatedAt = new Date(tx.updated_at);
+                    const createdBy = tx.created_by_name || 'sistem';
+                    const updatedBy = tx.updated_by_name || 'sistem';
+                    
+                    let auditInfo = `Dibuat: ${createdBy} pada ${createdAt.toLocaleString('id-ID')}`;
+                    let auditIcon = '<i class="bi bi-info-circle"></i>';
+
+                    if (updatedBy && updatedAt.getTime() > createdAt.getTime() + 1000) { // Cek jika ada update signifikan
+                        auditInfo += `\nDiperbarui: ${updatedBy} pada ${updatedAt.toLocaleString('id-ID')}`;
+                        auditIcon = '<i class="bi bi-info-circle-fill text-primary"></i>';
+                    }
+
+                    // Cek apakah transaksi terkunci
+                    const isLocked = periodLockDate && new Date(tx.tanggal) <= periodLockDate;
+                    const disabledAttr = isLocked ? 'disabled title="Periode terkunci"' : '';
+                    const deleteBtnHtml = `<button class="btn btn-sm btn-danger delete-btn" data-id="${tx.id}" data-keterangan="${tx.keterangan}" title="Hapus" ${disabledAttr}><i class="bi bi-trash-fill"></i></button>`;
+                    const editBtnHtml = `<button class="btn btn-sm btn-warning edit-btn" data-id="${tx.id}" title="Edit" ${disabledAttr}><i class="bi bi-pencil-fill"></i></button>`;
+
                     const row = `
-                        <tr>
+                        <tr id="tx-${tx.id}">
                             <td>${new Date(tx.tanggal).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</td>
                             <td>${akunUtama}</td>
                             <td><small class="text-muted">${tx.nomor_referensi || '-'}</small></td>
                             <td>${tx.keterangan}</td>
                             <td class="text-end">${jumlahDisplay}</td>
+                            <td><span data-bs-toggle="tooltip" data-bs-placement="top" title="${auditInfo}">${auditIcon}</span></td>
                             <td><small>${akunKas}</small></td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-danger delete-btn" data-id="${tx.id}" data-keterangan="${tx.keterangan}" title="Hapus"><i class="bi bi-trash-fill"></i></button>
-                                <button class="btn btn-sm btn-secondary view-journal-btn" data-id="${tx.id}" title="Lihat Jurnal"><i class="bi bi-journal-text"></i></button>
+                                ${deleteBtnHtml}
+                                ${editBtnHtml}
+                                <button class="btn btn-sm btn-secondary view-journal-btn" data-id="${tx.id}" title="Lihat Jurnal"><i class="bi bi-journal-text"></i></button>                                
                             </td>
                         </tr>
                     `;
                     tableBody.insertAdjacentHTML('beforeend', row);
                 });
             } else {
-                tableBody.innerHTML = '<tr><td colspan="8" class="text-center">Tidak ada transaksi ditemukan.</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="9" class="text-center">Tidak ada transaksi ditemukan.</td></tr>';
             }
             renderPagination(paginationContainer, result.pagination, loadTransaksi);
+            // Inisialisasi ulang tooltip setelah data baru dimuat
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
         } catch (error) {
-            tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Gagal memuat data: ${error.message}</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Gagal memuat data: ${error.message}</td></tr>`;
         }
     }
 
@@ -813,7 +866,11 @@ function initTransaksiPage() {
         if (editBtn) {
             const id = editBtn.dataset.id;
             try {
-                const response = await fetch(`${basePath}/api/transaksi?action=get_single&id=${id}`);
+                // Gunakan POST untuk get_single sesuai dengan handler
+                const formData = new FormData();
+                formData.append('action', 'get_single');
+                formData.append('id', id);
+                const response = await fetch(`${basePath}/api/transaksi`, { method: 'POST', body: formData });
                 const result = await response.json();
                 if (result.status !== 'success') throw new Error(result.message);
 
@@ -1721,6 +1778,453 @@ function initLaporanHarianPage() {
     loadReport();
 }
 
+function initTutupBukuPage() {
+    const closingDateInput = document.getElementById('closing-date');
+    const processBtn = document.getElementById('process-closing-btn');
+    const historyContainer = document.getElementById('closing-history-container');
+
+    if (!processBtn) return;
+
+    // Set default date to end of last year
+    const lastYear = new Date().getFullYear() - 1;
+    closingDateInput.value = `${lastYear}-12-31`;
+
+    async function loadHistory() {
+        historyContainer.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div></div>';
+        try {
+            const response = await fetch(`${basePath}/api/tutup-buku?action=list_history`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            historyContainer.innerHTML = '';
+            if (result.data.length > 0) {
+                result.data.forEach(item => {
+                    // Tombol batal hanya muncul untuk item paling atas (paling baru)
+                    const isLatest = historyContainer.children.length === 0;
+                    const batalBtn = isLatest ? `<button class="btn btn-sm btn-outline-warning ms-2 reverse-closing-btn" data-id="${item.id}" title="Batalkan Jurnal Penutup ini"><i class="bi bi-unlock-fill"></i></button>` : '';
+                    const historyItem = `
+                        <a href="${basePath}/daftar-jurnal#JRN-${item.id}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-journal-id="${item.id}">
+                            <span>${item.keterangan} <span class="badge bg-secondary rounded-pill">${new Date(item.tanggal).toLocaleDateString('id-ID')}</span></span>
+                            <span>${batalBtn}</span>
+                        </a>
+                    `;
+                    historyContainer.insertAdjacentHTML('beforeend', historyItem);
+                });
+            } else {
+                historyContainer.innerHTML = '<p class="text-center text-muted">Belum ada histori tutup buku.</p>';
+            }
+        } catch (error) {
+            historyContainer.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+        }
+    }
+
+    processBtn.addEventListener('click', async () => {
+        const closingDate = closingDateInput.value;
+        if (!closingDate) {
+            showToast('Harap pilih tanggal tutup buku.', 'error');
+            return;
+        }
+
+        if (confirm(`ANDA YAKIN? Proses ini akan membuat Jurnal Penutup untuk periode yang berakhir pada ${closingDate}. Aksi ini tidak dapat dibatalkan dengan mudah.`)) {
+            const formData = new FormData();
+            formData.append('action', 'process_closing');
+            formData.append('closing_date', closingDate);
+
+            const response = await fetch(`${basePath}/api/tutup-buku`, { method: 'POST', body: formData });
+            const result = await response.json();
+            showToast(result.message, result.status === 'success' ? 'success' : 'error');
+            if (result.status === 'success') loadHistory();
+        }
+    });
+
+    historyContainer.addEventListener('click', async (e) => {
+        const reverseBtn = e.target.closest('.reverse-closing-btn');
+        if (reverseBtn) {
+            e.preventDefault(); // Mencegah navigasi dari link <a>
+            e.stopPropagation(); // Mencegah event bubble up ke link <a>
+
+            const id = reverseBtn.dataset.id;
+            if (confirm(`ANDA YAKIN? \n\nMembatalkan Jurnal Penutup ini akan membuat Jurnal Pembalik dan membuka kembali periode yang terkunci. \n\nAksi ini hanya bisa dilakukan pada Jurnal Penutup yang paling baru.`)) {
+                const formData = new FormData();
+                formData.append('action', 'reverse_closing');
+                formData.append('id', id);
+
+                const response = await fetch(`${basePath}/api/tutup-buku`, { method: 'POST', body: formData });
+                const result = await response.json();
+                showToast(result.message, result.status === 'success' ? 'success' : 'error');
+                if (result.status === 'success') loadHistory();
+            }
+        }
+    });
+
+    loadHistory();
+}
+
+function initLaporanLabaDitahanPage() {
+    const tglMulai = document.getElementById('re-tanggal-mulai');
+    const tglAkhir = document.getElementById('re-tanggal-akhir');
+    const tampilkanBtn = document.getElementById('re-tampilkan-btn');
+    const reportContent = document.getElementById('re-report-content');
+    const reportHeader = document.getElementById('re-report-header');
+    const exportPdfBtn = document.getElementById('export-re-pdf');
+    const exportCsvBtn = document.getElementById('export-re-csv');
+
+    if (!tampilkanBtn) return;
+
+    // Set default dates to current year
+    const now = new Date();
+    tglMulai.value = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+    tglAkhir.value = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
+
+    const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 2 });
+
+    async function loadReport() {
+        const startDate = tglMulai.value;
+        const endDate = tglAkhir.value;
+
+        if (!startDate || !endDate) {
+            showToast('Harap pilih rentang tanggal.', 'error');
+            return;
+        }
+
+        const originalBtnHtml = tampilkanBtn.innerHTML;
+        tampilkanBtn.disabled = true;
+        tampilkanBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Memuat...`;
+        reportContent.innerHTML = `<div class="text-center p-5"><div class="spinner-border"></div></div>`;
+
+        try {
+            const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+            const response = await fetch(`${basePath}/api/laporan-laba-ditahan?${params.toString()}`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            const { account_info, saldo_awal, transactions } = result.data;
+            reportHeader.textContent = `Laporan Perubahan Laba Ditahan: ${account_info.nama_akun}`;
+
+            let tableHtml = `
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr><th>Tanggal</th><th>Keterangan</th><th class="text-end">Debit</th><th class="text-end">Kredit</th><th class="text-end">Saldo</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4"><strong>Saldo Awal per ${new Date(startDate).toLocaleDateString('id-ID')}</strong></td>
+                            <td class="text-end"><strong>${currencyFormatter.format(saldo_awal)}</strong></td>
+                        </tr>
+            `;
+
+            let saldoBerjalan = parseFloat(saldo_awal);
+            transactions.forEach(tx => {
+                const debit = parseFloat(tx.debit);
+                const kredit = parseFloat(tx.kredit);
+                saldoBerjalan += kredit - debit; // Saldo normal Ekuitas adalah Kredit
+                
+                tableHtml += `
+                    <tr>
+                        <td>${new Date(tx.tanggal).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</td>
+                        <td>${tx.keterangan}</td>
+                        <td class="text-end">${debit > 0 ? currencyFormatter.format(debit) : '-'}</td>
+                        <td class="text-end">${kredit > 0 ? currencyFormatter.format(kredit) : '-'}</td>
+                        <td class="text-end">${currencyFormatter.format(saldoBerjalan)}</td>
+                    </tr>
+                `;
+            });
+
+            tableHtml += `</tbody><tfoot><tr class="table-light"><td colspan="4" class="text-end fw-bold">Saldo Akhir per ${new Date(endDate).toLocaleDateString('id-ID')}</td><td class="text-end fw-bold">${currencyFormatter.format(saldoBerjalan)}</td></tr></tfoot></table>`;
+            reportContent.innerHTML = tableHtml;
+
+        } catch (error) {
+            reportContent.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+        } finally {
+            tampilkanBtn.disabled = false;
+            tampilkanBtn.innerHTML = originalBtnHtml;
+        }
+    }
+
+    tampilkanBtn.addEventListener('click', loadReport);
+
+    exportPdfBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const url = `${basePath}/api/laporan_cetak_handler.php?report=laporan-laba-ditahan&start_date=${tglMulai.value}&end_date=${tglAkhir.value}`;
+        window.open(url, '_blank');
+    });
+
+    exportCsvBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const url = `${basePath}/api/laporan_cetak_csv_handler.php?report=laporan-laba-ditahan&format=csv&start_date=${tglMulai.value}&end_date=${tglAkhir.value}`;
+        window.open(url, '_blank');
+    });
+
+    loadReport(); // Initial load
+}
+
+function initAnalisisRasioPage() {
+    const dateInput = document.getElementById('ra-tanggal-akhir');
+    const compareDateInput = document.getElementById('ra-tanggal-pembanding');
+    const analyzeBtn = document.getElementById('ra-tampilkan-btn');
+    const contentContainer = document.getElementById('ratio-analysis-content');
+    const cardTemplate = document.getElementById('ratio-card-template');
+
+    if (!analyzeBtn) return;
+
+    // Set default dates
+    const today = new Date();
+    dateInput.value = today.toISOString().split('T')[0];
+    const lastMonth = new Date(today.setMonth(today.getMonth() - 1));
+    compareDateInput.value = lastMonth.toISOString().split('T')[0];
+
+    const ratioDefinitions = {
+        profit_margin: {
+            name: 'Profit Margin',
+            formula: '(Laba Bersih / Total Pendapatan) * 100%',
+            description: 'Mengukur seberapa besar laba bersih yang dihasilkan dari setiap rupiah pendapatan. Semakin tinggi, semakin baik.',
+            format: (val) => `${(val * 100).toFixed(2)}%`,
+            interpret: (val) => val > 0.1 ? 'Sangat Baik' : (val > 0.05 ? 'Baik' : 'Perlu Perhatian'),
+            color: (val) => val > 0.1 ? 'text-success' : (val > 0.05 ? 'text-warning' : 'text-danger'),
+        },
+        debt_to_asset: {
+            name: 'Debt to Asset Ratio',
+            formula: 'Total Liabilitas / Total Aset',
+            description: 'Mengukur seberapa besar aset perusahaan yang dibiayai oleh utang. Semakin rendah, semakin baik.',
+            format: (val) => val.toFixed(2),
+            interpret: (val) => val < 0.5 ? 'Sehat' : (val < 0.8 ? 'Waspada' : 'Berisiko Tinggi'),
+            color: (val) => val < 0.5 ? 'text-success' : (val < 0.8 ? 'text-warning' : 'text-danger'),
+        },
+        current_ratio: {
+            name: 'Current Ratio (Rasio Lancar)',
+            formula: 'Total Aset Lancar / Total Liabilitas Jangka Pendek',
+            description: 'Mengukur kemampuan perusahaan membayar utang jangka pendeknya dengan aset lancar. Nilai di atas 1 menunjukkan likuiditas yang baik.',
+            format: (val) => val.toFixed(2),
+            interpret: (val) => val > 2 ? 'Sangat Baik' : (val >= 1 ? 'Baik' : 'Perlu Perhatian'),
+            color: (val) => val > 2 ? 'text-success' : (val >= 1 ? 'text-primary' : 'text-danger'),
+        },
+        return_on_equity: {
+            name: 'Return on Equity (ROE)',
+            formula: '(Laba Bersih / Total Ekuitas) * 100%',
+            description: 'Mengukur kemampuan perusahaan menghasilkan laba dari modal yang diinvestasikan oleh pemilik/anggota. Semakin tinggi, semakin efisien penggunaan modal.',
+            format: (val) => `${(val * 100).toFixed(2)}%`,
+            interpret: (val) => val > 0.15 ? 'Sangat Baik' : (val > 0.05 ? 'Baik' : 'Kurang Efisien'),
+            color: (val) => val > 0.15 ? 'text-success' : (val > 0.05 ? 'text-warning' : 'text-danger'),
+        }
+    };
+
+    async function runAnalysis() {
+        const date = dateInput.value;
+        const compareDate = compareDateInput.value;
+
+        if (!date) {
+            showToast('Tanggal analisis wajib diisi.', 'error');
+            return;
+        }
+
+        contentContainer.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
+
+        try {
+            const params = new URLSearchParams({ date });
+            if (compareDate) {
+                params.append('compare_date', compareDate);
+            }
+            const response = await fetch(`${basePath}/api/analisis-rasio?${params.toString()}`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            const { current, previous } = result.data;
+            contentContainer.innerHTML = '<div class="row"></div>';
+            const rowContainer = contentContainer.querySelector('.row');
+
+            for (const key in current) {
+                if (ratioDefinitions[key]) {
+                    const def = ratioDefinitions[key];
+                    const card = cardTemplate.content.cloneNode(true);
+                    
+                    card.querySelector('.ratio-name').textContent = def.name;
+                    card.querySelector('[data-bs-toggle="tooltip"]').setAttribute('title', def.description);
+                    card.querySelector('.ratio-value').textContent = def.format(current[key]);
+                    card.querySelector('.ratio-formula').textContent = `Rumus: ${def.formula}`;
+                    
+                    const interpretationEl = card.querySelector('.ratio-interpretation');
+                    interpretationEl.textContent = `Interpretasi: ${def.interpret(current[key])}`;
+                    interpretationEl.classList.add(def.color(current[key]));
+
+                    if (previous && previous[key] !== null) {
+                        const change = current[key] - previous[key];
+                        const changeIcon = change >= 0 ? '<i class="bi bi-arrow-up"></i>' : '<i class="bi bi-arrow-down"></i>';
+                        const changeColor = change >= 0 ? 'text-success' : 'text-danger';
+                        card.querySelector('.ratio-comparison').innerHTML = `${changeIcon} <span class="${changeColor}">${Math.abs(change * (def.name.includes('%') ? 100 : 1)).toFixed(2)}</span> vs periode sebelumnya`;
+                    } else {
+                        card.querySelector('.ratio-comparison').textContent = 'Tidak ada data pembanding.';
+                    }
+
+                    rowContainer.appendChild(card);
+                }
+            }
+
+            // Re-initialize tooltips
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+        } catch (error) {
+            contentContainer.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+        }
+    }
+
+    analyzeBtn.addEventListener('click', runAnalysis);
+    runAnalysis(); // Initial load
+}
+
+function initTransaksiBerulangPage() {
+    const tableBody = document.getElementById('recurring-table-body');
+    if (!tableBody) return;
+
+    async function loadTemplates() {
+        tableBody.innerHTML = `<tr><td colspan="5" class="text-center p-5"><div class="spinner-border"></div></td></tr>`;
+        try {
+            const response = await fetch(`${basePath}/api/recurring?action=list_templates`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            tableBody.innerHTML = '';
+            if (result.data.length > 0) {
+                result.data.forEach(t => {
+                    const statusBadge = t.is_active == 1 ? `<span class="badge bg-success">Aktif</span>` : `<span class="badge bg-secondary">Non-Aktif</span>`;
+                    const toggleText = t.is_active == 1 ? 'Non-aktifkan' : 'Aktifkan';
+                    const row = `
+                        <tr>
+                            <td>${t.name}</td>
+                            <td>Setiap ${t.frequency_interval} ${t.frequency_unit}</td>
+                            <td>${new Date(t.next_run_date).toLocaleDateString('id-ID', {dateStyle: 'long'})}</td>
+                            <td>${statusBadge}</td>
+                            <td class="text-end">
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-info edit-recurring-btn" data-id="${t.id}"><i class="bi bi-pencil-fill"></i></button>
+                                    <button class="btn btn-sm btn-secondary toggle-status-btn" data-id="${t.id}" data-active="${t.is_active}" title="${toggleText}"><i class="bi bi-power"></i></button>
+                                    <button class="btn btn-sm btn-danger delete-recurring-btn" data-id="${t.id}"><i class="bi bi-trash-fill"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.insertAdjacentHTML('beforeend', row);
+                });
+            } else {
+                tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Belum ada template yang dibuat.</td></tr>`;
+            }
+        } catch (error) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Gagal memuat data: ${error.message}</td></tr>`;
+        }
+    }
+
+    tableBody.addEventListener('click', async (e) => {
+        const deleteBtn = e.target.closest('.delete-recurring-btn');
+        if (deleteBtn) {
+            if (confirm('Yakin ingin menghapus template ini?')) {
+                const formData = new FormData();
+                formData.append('action', 'delete');
+                formData.append('id', deleteBtn.dataset.id);
+                const response = await fetch(`${basePath}/api/recurring`, { method: 'POST', body: formData });
+                const result = await response.json();
+                showToast(result.message, result.status);
+                if (result.status === 'success') loadTemplates();
+            }
+        }
+
+        const toggleBtn = e.target.closest('.toggle-status-btn');
+        if (toggleBtn) {
+            const formData = new FormData();
+            formData.append('action', 'toggle_status');
+            formData.append('id', toggleBtn.dataset.id);
+            formData.append('is_active', toggleBtn.dataset.active == 1 ? 0 : 1);
+            const response = await fetch(`${basePath}/api/recurring`, { method: 'POST', body: formData });
+            const result = await response.json();
+            showToast(result.message, result.status);
+            if (result.status === 'success') loadTemplates();
+        }
+
+        const editBtn = e.target.closest('.edit-recurring-btn');
+        if (editBtn) {
+            const response = await fetch(`${basePath}/api/recurring?action=get_single&id=${editBtn.dataset.id}`);
+            const result = await response.json();
+            if (result.status === 'success') {
+                openRecurringModal(result.data.template_type, JSON.parse(result.data.template_data), result.data);
+            } else {
+                showToast(result.message, 'error');
+            }
+        }
+    });
+
+    document.getElementById('add-recurring-btn').addEventListener('click', (e) => {
+        e.preventDefault();
+        // Arahkan pengguna untuk membuat jurnal dulu
+        showToast('Silakan buat draf jurnal di halaman "Entri Jurnal", lalu klik "Jadikan Berulang".', 'info');
+        navigate(`${basePath}/entri-jurnal`);
+    });
+
+    loadTemplates();
+}
+
+function initActivityLogPage() {
+    const tableBody = document.getElementById('activity-log-table-body');
+    const searchInput = document.getElementById('search-log');
+    const startDateFilter = document.getElementById('filter-log-mulai');
+    const endDateFilter = document.getElementById('filter-log-akhir');
+    const limitSelect = document.getElementById('filter-log-limit');
+    const paginationContainer = document.getElementById('activity-log-pagination');
+
+    if (!tableBody) return;
+
+    // Set default dates
+    endDateFilter.valueAsDate = new Date();
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    startDateFilter.valueAsDate = sevenDaysAgo;
+
+    async function loadLogs(page = 1) {
+        const params = new URLSearchParams({
+            page,
+            limit: limitSelect.value,
+            search: searchInput.value,
+            start_date: startDateFilter.value,
+            end_date: endDateFilter.value,
+        });
+
+        tableBody.innerHTML = `<tr><td colspan="5" class="text-center p-5"><div class="spinner-border"></div></td></tr>`;
+        try {
+            const response = await fetch(`${basePath}/api/activity-log?${params.toString()}`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            tableBody.innerHTML = '';
+            if (result.data.length > 0) {
+                result.data.forEach(log => {
+                    const row = `
+                        <tr>
+                            <td><small>${new Date(log.timestamp).toLocaleString('id-ID')}</small></td>
+                            <td>${log.username}</td>
+                            <td><span class="badge bg-info text-dark">${log.action}</span></td>
+                            <td>${log.details}</td>
+                            <td>${log.ip_address}</td>
+                        </tr>
+                    `;
+                    tableBody.insertAdjacentHTML('beforeend', row);
+                });
+            } else {
+                tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Tidak ada log aktivitas ditemukan.</td></tr>';
+            }
+            renderPagination(paginationContainer, result.pagination, loadLogs);
+        } catch (error) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Gagal memuat data: ${error.message}</td></tr>`;
+        }
+    }
+
+    let debounceTimer;
+    const filterHandler = () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => loadLogs(1), 300); };
+    [searchInput, startDateFilter, endDateFilter, limitSelect].forEach(el => el.addEventListener('change', filterHandler));
+    searchInput.addEventListener('input', filterHandler);
+
+    loadLogs();
+}
+
 function initAnggaranPage() {
     const yearFilter = document.getElementById('anggaran-tahun-filter');
     const monthFilter = document.getElementById('anggaran-bulan-filter');
@@ -2469,6 +2973,7 @@ function initEntriJurnalPage() {
     const form = document.getElementById('entri-jurnal-form');
     const linesBody = document.getElementById('jurnal-lines-body');
     const addLineBtn = document.getElementById('add-jurnal-line-btn');
+    const saveAsRecurringBtn = document.getElementById('save-as-recurring-btn');
 
 
     if (!form) return;
@@ -2582,6 +3087,36 @@ function initEntriJurnalPage() {
         }
     });
 
+    saveAsRecurringBtn.addEventListener('click', () => {
+        // Validasi form jurnal dulu
+        const keterangan = document.getElementById('jurnal-keterangan').value;
+        if (!keterangan) {
+            showToast('Keterangan jurnal wajib diisi sebelum membuat template.', 'error');
+            return;
+        }
+
+        // Kumpulkan data baris jurnal
+        const lines = [];
+        linesBody.querySelectorAll('tr').forEach(row => {
+            const account_id = row.querySelector('select').value;
+            const debit = parseFloat(row.querySelector('.debit-input').value) || 0;
+            const kredit = parseFloat(row.querySelector('.kredit-input').value) || 0;
+            if (account_id && (debit > 0 || kredit > 0)) {
+                lines.push({ account_id, debit, kredit });
+            }
+        });
+
+        if (lines.length < 2) {
+            showToast('Template harus memiliki minimal 2 baris jurnal.', 'error');
+            return;
+        }
+
+        const templateData = { keterangan, lines };
+
+        // Buka modal recurring
+        openRecurringModal('jurnal', templateData);
+    });
+
     async function loadJournalForEdit(id) {
         try {
             const response = await fetch(`${basePath}/api/entri-jurnal?action=get_single&id=${id}`);
@@ -2622,11 +3157,14 @@ function initEntriJurnalPage() {
     const editId = urlParams.get('edit_id');
 
     fetchAccounts().then(() => {
-        if (editId) {
-            loadJournalForEdit(editId);
-        } else {
-            document.getElementById('jurnal-tanggal').valueAsDate = new Date();
-            addJurnalLine(); addJurnalLine();
+        // Pastikan elemen ada sebelum diakses
+        if (document.getElementById('jurnal-tanggal')) {
+            if (editId) {
+                loadJournalForEdit(editId);
+            } else {
+                document.getElementById('jurnal-tanggal').valueAsDate = new Date();
+                addJurnalLine(); addJurnalLine();
+            }
         }
     });
 }
@@ -2643,6 +3181,7 @@ function initDaftarJurnalPage() {
     const viewModalEl = document.getElementById('viewJurnalModal');
 
     if (!tableBody) return;
+    let periodLockDate = null;
 
     const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
 
@@ -2656,9 +3195,17 @@ function initDaftarJurnalPage() {
         });
 
         tableBody.innerHTML = `<tr><td colspan="8" class="text-center p-5"><div class="spinner-border"></div></td></tr>`;
-        try { // Ubah colspan menjadi 7
-            const response = await fetch(`${basePath}/api/entri-jurnal?${params.toString()}`);
-            const result = await response.json();
+        try {
+            const [jurnalRes, settingsRes] = await Promise.all([
+                fetch(`${basePath}/api/entri-jurnal?${params.toString()}`),
+                fetch(`${basePath}/api/settings`)
+            ]);
+            const result = await jurnalRes.json();
+            const settingsResult = await settingsRes.json();
+
+            if (settingsResult.status === 'success' && settingsResult.data.period_lock_date) {
+                periodLockDate = new Date(settingsResult.data.period_lock_date);
+            }
             if (result.status !== 'success') throw new Error(result.message);
 
             tableBody.innerHTML = '';
@@ -2668,12 +3215,26 @@ function initDaftarJurnalPage() {
                     const isFirstRowOfGroup = line.ref !== lastRef;
                     const borderTopClass = isFirstRowOfGroup && index > 0 ? 'border-top-heavy' : '';
 
+                    // Info Audit (Created/Updated)
+                    const createdAt = new Date(line.created_at);
+                    const updatedAt = new Date(line.updated_at);
+                    const createdBy = line.created_by_name || 'sistem';
+                    const updatedBy = line.updated_by_name || 'sistem';
+                    
+                    let auditInfo = `Dibuat: ${createdBy} pada ${createdAt.toLocaleString('id-ID')}`;
+                    let auditIcon = '<i class="bi bi-info-circle"></i>';
+
+                    if (updatedBy && updatedAt.getTime() > createdAt.getTime() + 1000) { // Cek jika ada update signifikan
+                        auditInfo += `\nDiperbarui: ${updatedBy} pada ${updatedAt.toLocaleString('id-ID')}`;
+                        auditIcon = '<i class="bi bi-info-circle-fill text-primary"></i>';
+                    }
+
                     let editBtn, deleteBtn;
                     if (line.source === 'jurnal') {
                         editBtn = `<a href="${basePath}/entri-jurnal?edit_id=${line.entry_id}" class="btn btn-sm btn-warning edit-jurnal-btn" title="Edit"><i class="bi bi-pencil-fill"></i></a>`;
                         deleteBtn = `<button class="btn btn-sm btn-danger delete-jurnal-btn" data-id="${line.entry_id}" data-keterangan="${line.keterangan}" title="Hapus"><i class="bi bi-trash-fill"></i></button>`;
-                    } else { // transaksi
-                        editBtn = `<button class="btn btn-sm btn-warning edit-transaksi-btn" data-id="${line.entry_id}" title="Edit Transaksi"><i class="bi bi-pencil-fill"></i></button>`;
+                    } else { // transaksi, hanya bisa dihapus dari sini, edit di halaman transaksi
+                        editBtn = `<a href="${basePath}/transaksi#tx-${line.entry_id}" class="btn btn-sm btn-secondary" title="Lihat & Edit di Halaman Transaksi"><i class="bi bi-box-arrow-up-right"></i></a>`;
                         deleteBtn = `<button class="btn btn-sm btn-danger delete-transaksi-btn" data-id="${line.entry_id}" data-keterangan="${line.keterangan}" title="Hapus Transaksi"><i class="bi bi-trash-fill"></i></button>`;
                     }
 
@@ -2685,8 +3246,8 @@ function initDaftarJurnalPage() {
                             <td class="${line.debit > 0 ? '' : 'ps-4'}">${line.nama_akun || '-'}</td>
                             <td class="text-end">${line.debit > 0 ? currencyFormatter.format(line.debit) : ''}</td>
                             <td class="text-end">${line.kredit > 0 ? currencyFormatter.format(line.kredit) : ''}</td>
-                            <td><small>${isFirstRowOfGroup ? line.user_nama : ''}</small></td>
-                            <td class="text-end align-middle" style="width: 130px;">
+                            <td>${isFirstRowOfGroup ? `<span data-bs-toggle="tooltip" data-bs-placement="top" title="${auditInfo}">${auditIcon}</span>` : ''}</td>
+                            <td class="text-end align-middle">
                                 ${isFirstRowOfGroup ? `
                                     <div class="btn-group">
                                         ${editBtn}
@@ -2703,6 +3264,11 @@ function initDaftarJurnalPage() {
                 tableBody.innerHTML = '<tr><td colspan="8" class="text-center">Tidak ada entri jurnal ditemukan.</td></tr>';
             }
             renderPagination(paginationContainer, result.pagination, loadJurnal);
+            // Inisialisasi ulang tooltip setelah data baru dimuat
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
         } catch (error) {
             tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Gagal memuat data: ${error.message}</td></tr>`;
         }
@@ -2733,7 +3299,7 @@ function initDaftarJurnalPage() {
         const deleteTransaksiBtn = e.target.closest('.delete-transaksi-btn');
         if (deleteTransaksiBtn) {
             const { id, keterangan } = deleteTransaksiBtn.dataset;
-            if (confirm(`Yakin ingin menghapus transaksi "${keterangan}"?`)) {
+            if (confirm(`Yakin ingin menghapus transaksi "${keterangan}"? Aksi ini juga akan menghapus entri jurnal terkait.`)) {
                 const formData = new FormData();
                 formData.append('action', 'delete');
                 formData.append('id', id);
@@ -2768,23 +3334,33 @@ function initDaftarJurnalPage() {
     const combinedFilterHandler = () => {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => loadJurnal(1), 300);
-        localStorage.setItem('jurnal_limit', limitSelect.value); // Save limit on change
+        // Simpan semua filter ke localStorage
+        localStorage.setItem('daftar_jurnal_limit', limitSelect.value);
+        localStorage.setItem('daftar_jurnal_start_date', startDateFilter.value);
+        localStorage.setItem('daftar_jurnal_end_date', endDateFilter.value);
     };
     [searchInput, startDateFilter, endDateFilter, limitSelect].forEach(el => el.addEventListener('change', combinedFilterHandler));
     searchInput.addEventListener('input', combinedFilterHandler);
 
-    // Load saved limit from localStorage before the initial load
-    const savedJurnalLimit = localStorage.getItem('jurnal_limit');
-    if (savedJurnalLimit) {
-        limitSelect.value = savedJurnalLimit;
+    // Muat filter yang tersimpan dari localStorage sebelum memuat data awal
+    const savedLimit = localStorage.getItem('daftar_jurnal_limit');
+    if (savedLimit) {
+        limitSelect.value = savedLimit;
     }
 
-    // Set default dates to the current month on initial load
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-    startDateFilter.value = firstDay;
-    endDateFilter.value = lastDay;
+    const savedStartDate = localStorage.getItem('daftar_jurnal_start_date');
+    const savedEndDate = localStorage.getItem('daftar_jurnal_end_date');
+
+    if (savedStartDate && savedEndDate) {
+        startDateFilter.value = savedStartDate;
+        endDateFilter.value = savedEndDate;
+    } else {
+        // Atur tanggal default ke bulan ini jika tidak ada yang tersimpan
+        const now = new Date();
+        startDateFilter.value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        endDateFilter.value = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    }
+
     // Initial load
     loadJurnal();
 }
@@ -2801,6 +3377,8 @@ function initSettingsPage() {
     const cfSettingsForm = document.getElementById('arus-kas-settings-form');
     const konsinyasiSettingsContainer = document.getElementById('konsinyasi-settings-container');
     const saveKonsinyasiSettingsBtn = document.getElementById('save-konsinyasi-settings-btn');
+    const accountingSettingsContainer = document.getElementById('accounting-settings-container');
+    const saveAccountingSettingsBtn = document.getElementById('save-accounting-settings-btn');
     if (!generalSettingsContainer) return;
 
     async function loadSettings() {
@@ -3006,6 +3584,48 @@ function initSettingsPage() {
         }
     }
 
+    async function loadAccountingSettings() {
+        if (!accountingSettingsContainer) return;
+        try {
+            const [settingsRes, equityAccRes] = await Promise.all([
+                fetch(`${basePath}/api/settings`),
+                fetch(`${basePath}/api/settings?action=get_equity_accounts`)
+            ]);
+            const settingsResult = await settingsRes.json();
+            const equityAccResult = await equityAccRes.json();
+
+            if (settingsResult.status !== 'success' || equityAccResult.status !== 'success') {
+                throw new Error(settingsResult.message || equityAccResult.message);
+            }
+
+            const settings = settingsResult.data;
+            const equityAccounts = equityAccResult.data;
+
+            let equityOptions = equityAccounts.map(acc => `<option value="${acc.id}">${acc.kode_akun} - ${acc.nama_akun}</option>`).join('');
+
+            accountingSettingsContainer.innerHTML = `
+                <h5 class="mb-3">Pengaturan Jurnal Penutup</h5>
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label for="retained_earnings_account_id" class="form-label">Akun Laba Ditahan (Retained Earnings)</label>
+                        <select class="form-select" id="retained_earnings_account_id" name="retained_earnings_account_id">
+                            <option value="">-- Pilih Akun Ekuitas --</option>
+                            ${equityOptions}
+                        </select>
+                        <div class="form-text">Akun ini akan digunakan untuk menampung laba/rugi bersih saat proses tutup buku.</div>
+                    </div>
+                </div>
+            `;
+            // Set selected value
+            if (settings.retained_earnings_account_id) {
+                document.getElementById('retained_earnings_account_id').value = settings.retained_earnings_account_id;
+            }
+
+        } catch (error) {
+            accountingSettingsContainer.innerHTML = `<div class="alert alert-danger">Gagal memuat pengaturan akuntansi: ${error.message}</div>`;
+        }
+    }
+
     saveGeneralSettingsBtn.addEventListener('click', async () => {
         const formData = new FormData(generalSettingsForm);
         const originalBtnHtml = saveGeneralSettingsBtn.innerHTML;
@@ -3103,10 +3723,35 @@ function initSettingsPage() {
         });
     }
 
+    if (saveAccountingSettingsBtn) {
+        saveAccountingSettingsBtn.addEventListener('click', async () => {
+            const form = document.getElementById('accounting-settings-form');
+            const formData = new FormData(form);
+            const originalBtnHtml = saveAccountingSettingsBtn.innerHTML;
+            saveAccountingSettingsBtn.disabled = true;
+            saveAccountingSettingsBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Menyimpan...`;
+
+            try {
+                const response = await fetch(`${basePath}/api/settings`, { method: 'POST', body: formData });
+                const result = await response.json();
+                showToast(result.message, result.status === 'success' ? 'success' : 'error');
+                if (result.status === 'success') {
+                    loadAccountingSettings();
+                }
+            } catch (error) {
+                showToast('Terjadi kesalahan jaringan.', 'error');
+            } finally {
+                saveAccountingSettingsBtn.disabled = false;
+                saveAccountingSettingsBtn.innerHTML = originalBtnHtml;
+            }
+        });
+    }
+
     loadSettings();
     loadTransaksiSettings();
     loadArusKasSettings();
     loadKonsinyasiSettings();
+    loadAccountingSettings();
 }
 
 function initMyProfilePage() {
@@ -3503,6 +4148,42 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- Initial Page Load ---
     updateActiveSidebarLink(window.location.pathname);
     runPageScripts(window.location.pathname);
+});
+
+// --- Recurring Modal Logic (Global) ---
+const recurringModalEl = document.getElementById('recurringModal');
+const recurringModal = recurringModalEl ? new bootstrap.Modal(recurringModalEl) : null;
+const recurringForm = document.getElementById('recurring-form');
+
+function openRecurringModal(type, data, existingTemplate = null) {
+    if (!recurringModal || !recurringForm) return;
+
+    recurringForm.reset();
+    document.getElementById('recurring-template-type').value = type;
+    document.getElementById('recurring-template-data').value = JSON.stringify(data);
+
+    if (existingTemplate) {
+        document.getElementById('recurringModalLabel').textContent = 'Edit Jadwal Berulang';
+        document.getElementById('recurring-id').value = existingTemplate.id;
+        document.getElementById('recurring-name').value = existingTemplate.name;
+        document.getElementById('recurring-frequency-interval').value = existingTemplate.frequency_interval;
+        document.getElementById('recurring-frequency-unit').value = existingTemplate.frequency_unit;
+        document.getElementById('recurring-start-date').value = existingTemplate.start_date;
+        document.getElementById('recurring-end-date').value = existingTemplate.end_date || '';
+    } else {
+        document.getElementById('recurringModalLabel').textContent = 'Atur Jadwal Berulang';
+        document.getElementById('recurring-id').value = '';
+        document.getElementById('recurring-start-date').valueAsDate = new Date();
+    }
+
+    recurringModal.show();
+}
+
+document.getElementById('save-recurring-template-btn')?.addEventListener('click', async () => {
+    const response = await fetch(`${basePath}/api/recurring`, { method: 'POST', body: new FormData(recurringForm) });
+    const result = await response.json();
+    showToast(result.message, result.status);
+    if (result.status === 'success') recurringModal.hide();
 });
 
 /**

@@ -83,15 +83,18 @@ function log_activity(string $username, string $action, string $details = ''): v
  * Caches all settings on first call to avoid multiple DB queries.
  * @param string $key The setting key to retrieve.
  * @param mixed $default The default value to return if the key is not found.
+ * @param mysqli|null $conn Optional database connection. If not provided, it will get a new instance.
  * @return mixed The setting value.
  */
-function get_setting(string $key, $default = null)
+function get_setting(string $key, $default = null, $conn = null)
 {
     static $settings = null;
 
     if ($settings === null) {
-        $conn = Database::getInstance()->getConnection();
-        $result = $conn->query("SELECT setting_key, setting_value FROM settings");
+        if ($conn === null) {
+            $conn = Database::getInstance()->getConnection();
+        }
+        $result = $conn->query("SELECT setting_key, setting_value FROM settings"); // Use the provided or new connection
         $settings = [];
         while ($row = $result->fetch_assoc()) {
             $settings[$row['setting_key']] = $row['setting_value'];
@@ -379,5 +382,22 @@ function get_balance_sheet_status($conn, $user_id, $per_tanggal) {
         // Jika terjadi error, anggap tidak balance
         error_log("get_balance_sheet_status error: " . $e->getMessage());
         return ['is_balanced' => false, 'message' => $e->getMessage()];
+    }
+}
+
+/**
+ * Memeriksa apakah tanggal yang diberikan berada dalam periode akuntansi yang terkunci.
+ * Jika ya, akan melempar Exception.
+ *
+ * @param string $date_to_check Tanggal dalam format Y-m-d.
+ * @param mysqli $conn Objek koneksi database.
+ * @throws Exception Jika tanggal berada dalam periode terkunci.
+ */
+function check_period_lock($date_to_check, $conn) {
+    $lock_date_str = get_setting('period_lock_date', null, $conn);
+    if ($lock_date_str && !empty($date_to_check)) {
+        if (strtotime($date_to_check) <= strtotime($lock_date_str)) {
+            throw new Exception("Aksi dibatalkan. Periode akuntansi hingga tanggal " . date('d-m-Y', strtotime($lock_date_str)) . " telah ditutup dan tidak dapat diubah.");
+        }
     }
 }

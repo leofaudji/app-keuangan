@@ -10,7 +10,7 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
 
 $conn = Database::getInstance()->getConnection();
 $role = $_SESSION['role'];
-$user_id = $_SESSION['user_id'];
+$user_id = 1; // Semua user mengakses data yang sama
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -87,6 +87,16 @@ try {
                 'liabilitas' => array_values(array_filter($all_accounts, fn($acc) => $acc['tipe_akun'] == 'Liabilitas')),
             ];
             echo json_encode(['status' => 'success', 'data' => $accounts]);
+            exit;
+        }
+
+        if ($action === 'get_equity_accounts') {
+            $stmt = $conn->prepare("SELECT id, kode_akun, nama_akun FROM accounts WHERE user_id = ? AND tipe_akun = 'Ekuitas' ORDER BY kode_akun ASC");
+            $stmt->bind_param('i', $user_id);
+            $stmt->execute();
+            $equity_accounts = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+            echo json_encode(['status' => 'success', 'data' => $equity_accounts]);
             exit;
         }
 

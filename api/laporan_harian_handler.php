@@ -9,7 +9,7 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
 }
 
 $conn = Database::getInstance()->getConnection();
-$user_id = $_SESSION['user_id'];
+$user_id = 1; // Semua user mengakses data yang sama
 
 $tanggal = $_GET['tanggal'] ?? date('Y-m-d');
 

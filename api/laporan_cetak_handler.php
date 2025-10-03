@@ -14,6 +14,7 @@ require_once PROJECT_ROOT . '/includes/ReportBuilders/ArusKasReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/LaporanHarianReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/BukuBesarReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/DaftarJurnalReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/ReportBuilders/LaporanLabaDitahanReportBuilder.php';
 
 $conn = Database::getInstance()->getConnection();
 
@@ -45,6 +46,7 @@ $builder_map = [
     'laporan-harian' => LaporanHarianReportBuilder::class,
     'buku-besar' => BukuBesarReportBuilder::class,
     'daftar-jurnal' => DaftarJurnalReportBuilder::class,
+    'laporan-laba-ditahan' => LaporanLabaDitahanReportBuilder::class,
 ];
 
 try {

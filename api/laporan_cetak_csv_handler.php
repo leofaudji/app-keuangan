@@ -19,6 +19,7 @@ require_once PROJECT_ROOT . '/includes/ReportBuilders/LaporanHarianReportBuilder
 require_once PROJECT_ROOT . '/includes/ReportBuilders/BukuBesarReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/BukuBesarDataTrait.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/DaftarJurnalReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/ReportBuilders/LaporanLabaDitahanReportBuilder.php';
 
 $conn = Database::getInstance()->getConnection();
 $user_id = $_SESSION['user_id'];
@@ -251,6 +252,42 @@ try {
             foreach ($data as $line) {
                 fputcsv($output, [$line['ref'], $line['tanggal'], $line['keterangan'], $line['nama_akun'], $line['debit'], $line['kredit']]);
             }
+            break;
+        }
+
+        case 'laporan-laba-ditahan': {
+            $start_date = $_GET['start_date'] ?? date('Y-01-01');
+            $end_date = $_GET['end_date'] ?? date('Y-m-d');
+
+            $builder = new LaporanLabaDitahanReportBuilder(new PDF(), $conn, ['user_id' => $user_id, 'start_date' => $start_date, 'end_date' => $end_date]);
+            
+            $reflection = new ReflectionClass($builder);
+            $method = $reflection->getMethod('fetchData');
+            $method->setAccessible(true);
+            $data = $method->invoke($builder, $user_id, $start_date, $end_date);
+
+            fputcsv($output, ['Laporan Perubahan Laba Ditahan']);
+            fputcsv($output, ['Periode:', date('d M Y', strtotime($start_date)) . ' - ' . date('d M Y', strtotime($end_date))]);
+            fputcsv($output, []);
+
+            fputcsv($output, ['Tanggal', 'Keterangan', 'Debit', 'Kredit', 'Saldo']);
+            fputcsv($output, ['Saldo Awal per ' . date('d M Y', strtotime($start_date)), '', '', '', $data['saldo_awal']]);
+
+            $saldoBerjalan = (float)$data['saldo_awal'];
+            foreach ($data['transactions'] as $tx) {
+                $debit = (float)$tx['debit'];
+                $kredit = (float)$tx['kredit'];
+                $saldoBerjalan += $kredit - $debit;
+
+                fputcsv($output, [
+                    date('d-m-Y', strtotime($tx['tanggal'])),
+                    $tx['keterangan'],
+                    $debit,
+                    $kredit,
+                    $saldoBerjalan
+                ]);
+            }
+            fputcsv($output, ['Saldo Akhir per ' . date('d M Y', strtotime($end_date)), '', '', '', $saldoBerjalan]);
             break;
         }
 

@@ -60,6 +60,7 @@ if (!$is_spa_request) {
                         <th>No. Ref</th>
                         <th>Keterangan</th>
                         <th class="text-end">Jumlah</th>
+                        <th>Info</th>
                         <th>Dari/Ke Akun Kas</th>
                         <th class="text-end">Aksi</th>
                     </tr>

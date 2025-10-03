@@ -28,12 +28,18 @@ CREATE TABLE `accounts` (
   `saldo_normal` enum('Debit','Kredit') NOT NULL,
   `cash_flow_category` enum('Operasi','Investasi','Pendanaan') DEFAULT NULL,
   `is_kas` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Flag jika ini adalah akun kas/bank',
-  `saldo_awal` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `saldo_awal` decimal(15,2) NOT NULL DEFAULT 0.00,  
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `updated_by` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `user_kode_akun` (`user_id`,`kode_akun`),
   KEY `parent_id` (`parent_id`),
   FOREIGN KEY (`parent_id`) REFERENCES `accounts` (`id`) ON DELETE RESTRICT,
-  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Tabel utama untuk semua transaksi
@@ -70,6 +76,7 @@ CREATE TABLE `general_ledger` (
   `qty` int(11) DEFAULT NULL COMMENT 'Quantity for consignment sales',
   `consignment_item_id` int(11) DEFAULT NULL,
   `created_by` int(11) DEFAULT NULL,
+  `updated_by` int(11) DEFAULT NULL,
   `nomor_referensi` varchar(50) DEFAULT NULL,
   `account_id` int(11) NOT NULL,
   `debit` decimal(15,2) NOT NULL DEFAULT 0.00,
@@ -77,6 +84,7 @@ CREATE TABLE `general_ledger` (
   `ref_id` int(11) NOT NULL COMMENT 'ID dari tabel sumber (transaksi atau jurnal_entries)',
   `ref_type` enum('transaksi','jurnal') NOT NULL COMMENT 'Tabel sumber',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   KEY `account_id` (`account_id`),
@@ -91,8 +99,13 @@ CREATE TABLE `suppliers` (
   `user_id` int(11) NOT NULL,
   `nama_pemasok` varchar(100) NOT NULL,
   `kontak` varchar(100) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),  
+  `created_by` int(11) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `updated_by` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
+  FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -105,8 +118,14 @@ CREATE TABLE `consignment_items` (
   `harga_jual` decimal(15,2) NOT NULL,
   `harga_beli` decimal(15,2) NOT NULL COMMENT 'Harga yang harus dibayar ke pemasok',
   `stok_awal` int(11) NOT NULL DEFAULT 0,
-  `tanggal_terima` date NOT NULL,
+  `tanggal_terima` date NOT NULL,  
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `updated_by` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
+  FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -124,6 +143,27 @@ CREATE TABLE `jurnal_entries` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabel untuk template transaksi/jurnal berulang
+CREATE TABLE `recurring_templates` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `name` varchar(150) NOT NULL COMMENT 'Nama template, cth: "Sewa Kantor Bulanan"',
+  `frequency_unit` enum('day','week','month','year') NOT NULL,
+  `frequency_interval` int(11) NOT NULL DEFAULT 1 COMMENT 'cth: 1 bulan, 2 minggu',
+  `start_date` date NOT NULL,
+  `next_run_date` date NOT NULL,
+  `end_date` date DEFAULT NULL,
+  `template_type` enum('transaksi','jurnal') NOT NULL,
+  `template_data` json NOT NULL COMMENT 'Data JSON dari transaksi/jurnal yang akan dibuat',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `updated_by` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `next_run_date` (`next_run_date`, `is_active`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Tabel untuk detail/baris entri jurnal umum
@@ -210,7 +250,9 @@ INSERT INTO `accounts` (`id`, `user_id`, `parent_id`, `kode_akun`, `nama_akun`, 
 (600, 1, NULL, '6', 'Beban Operasional', 'Beban', 'Debit', NULL, 0, 0.00),
     (601, 1, 600, '6-1100', 'Beban Gaji Karyawan', 'Beban', 'Debit', 'Operasi', 0, 0.00),
     (602, 1, 600, '6-1200', 'Beban Listrik & Air', 'Beban', 'Debit', 'Operasi', 0, 0.00),
-    (603, 1, 600, '6-1300', 'Beban Perlengkapan Toko', 'Beban', 'Debit', 'Operasi', 0, 0.00);
+    (603, 1, 600, '6-1300', 'Beban Perlengkapan Toko', 'Beban', 'Debit', 'Operasi', 0, 0.00),
+    (108, 1, 106, '1-2101', 'Akumulasi Penyusutan - Peralatan', 'Aset', 'Kredit', NULL, 0, 0.00),
+    (604, 1, 600, '6-1400', 'Beban Penyusutan - Peralatan', 'Beban', 'Debit', 'Operasi', 0, 0.00);
 
 -- Data Demo Transaksi
 -- Transaksi Sederhana (Pemasukan & Pengeluaran Kas)
@@ -271,4 +313,5 @@ INSERT INTO `jurnal_details` (`jurnal_entry_id`, `account_id`, `debit`, `kredit`
 
 INSERT INTO `settings` (`setting_key`, `setting_value`) VALUES
 ('app_name', 'UangKu'),
-('notification_interval', '60000');
+('notification_interval', '60000'),
+('retained_earnings_account_id', '303');

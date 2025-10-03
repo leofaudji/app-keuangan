@@ -9,7 +9,8 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
 }
 
 $conn = Database::getInstance()->getConnection();
-$user_id = $_SESSION['user_id'];
+$user_id = 1; // Data dimiliki oleh user_id 1
+$logged_in_user_id = $_SESSION['user_id']; // User yang sedang login
 
 function get_saldo_normal($tipe_akun) {
     return in_array($tipe_akun, ['Aset', 'Beban']) ? 'Debit' : 'Kredit';
@@ -43,8 +44,8 @@ try {
                     throw new Exception("Kode, Nama, dan Tipe Akun tidak boleh kosong.");
                 }
 
-                $stmt = $conn->prepare("INSERT INTO accounts (user_id, parent_id, kode_akun, nama_akun, tipe_akun, saldo_normal, is_kas) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param('iissssi', $user_id, $parent_id, $kode_akun, $nama_akun, $tipe_akun, $saldo_normal, $is_kas);
+                $stmt = $conn->prepare("INSERT INTO accounts (user_id, parent_id, kode_akun, nama_akun, tipe_akun, saldo_normal, is_kas, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param('iissssii', $user_id, $parent_id, $kode_akun, $nama_akun, $tipe_akun, $saldo_normal, $is_kas, $logged_in_user_id);
                 if (!$stmt->execute()) {
                     if ($conn->errno == 1062) { // Duplicate entry
                         throw new Exception("Kode akun '{$kode_akun}' sudah ada.");
@@ -82,8 +83,8 @@ try {
                     throw new Exception("Kode, Nama, dan Tipe Akun tidak boleh kosong.");
                 }
 
-                $stmt = $conn->prepare("UPDATE accounts SET parent_id = ?, kode_akun = ?, nama_akun = ?, tipe_akun = ?, saldo_normal = ?, is_kas = ? WHERE id = ? AND user_id = ?");
-                $stmt->bind_param('issssiii', $parent_id, $kode_akun, $nama_akun, $tipe_akun, $saldo_normal, $is_kas, $id, $user_id);
+                $stmt = $conn->prepare("UPDATE accounts SET parent_id = ?, kode_akun = ?, nama_akun = ?, tipe_akun = ?, saldo_normal = ?, is_kas = ?, updated_by = ? WHERE id = ? AND user_id = ?");
+                $stmt->bind_param('issssiiii', $parent_id, $kode_akun, $nama_akun, $tipe_akun, $saldo_normal, $is_kas, $logged_in_user_id, $id, $user_id);
                 if (!$stmt->execute()) {
                      if ($conn->errno == 1062) {
                         throw new Exception("Kode akun '{$kode_akun}' sudah digunakan oleh akun lain.");
@@ -98,7 +99,7 @@ try {
             case 'delete':
                 $id = (int)($_POST['id'] ?? 0);
 
-                // Cek apakah akun ini adalah parent dari akun lain
+                // Cek apakah akun ini adalah parent dari akun lain (tidak perlu user_id karena parent_id unik)
                 $stmt_check_child = $conn->prepare("SELECT COUNT(*) as count FROM accounts WHERE parent_id = ?");
                 $stmt_check_child->bind_param('i', $id);
                 $stmt_check_child->execute();
@@ -107,14 +108,15 @@ try {
                 }
                 $stmt_check_child->close();
 
-                // Cek apakah akun masih digunakan di transaksi
-                $stmt_check_trans = $conn->prepare("SELECT COUNT(*) as count FROM transaksi WHERE account_id = ? OR kas_account_id = ? OR kas_tujuan_account_id = ?");
-                $stmt_check_trans->bind_param('iii', $id, $id, $id);
-                $stmt_check_trans->execute();
-                if ($stmt_check_trans->get_result()->fetch_assoc()['count'] > 0) {
-                    throw new Exception("Tidak dapat menghapus akun karena sudah memiliki riwayat transaksi.");
+                // Cek apakah akun masih digunakan di buku besar (general_ledger)
+                // Ini adalah pengecekan yang paling komprehensif karena semua transaksi (sederhana & majemuk) tercatat di sini.
+                $stmt_check_gl = $conn->prepare("SELECT COUNT(*) as count FROM general_ledger WHERE account_id = ? AND user_id = ?");
+                $stmt_check_gl->bind_param('ii', $id, $user_id);
+                $stmt_check_gl->execute();
+                if ($stmt_check_gl->get_result()->fetch_assoc()['count'] > 0) {
+                    throw new Exception("Tidak dapat menghapus akun karena sudah memiliki riwayat di buku besar (jurnal).");
                 }
-                $stmt_check_trans->close();
+                $stmt_check_gl->close();
 
                 $stmt = $conn->prepare("DELETE FROM accounts WHERE id = ? AND user_id = ?");
                 $stmt->bind_param('ii', $id, $user_id);

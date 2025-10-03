@@ -9,7 +9,8 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
 }
 
 $conn = Database::getInstance()->getConnection();
-$user_id = $_SESSION['user_id'];
+$user_id = 1; // Semua user mengakses data yang sama
+$logged_in_user_id = $_SESSION['user_id']; // Untuk logging
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -86,9 +87,11 @@ try {
         $params = ['i', $user_id];
 
         if (!empty($search)) {
-            $where_clauses[] = 't.keterangan LIKE ?';
-            $params[0] .= 's';
-            $params[] = '%' . $search . '%';
+            // Pencarian cerdas: berdasarkan keterangan, nomor referensi, atau ID
+            $where_clauses[] = '(t.keterangan LIKE ? OR t.nomor_referensi LIKE ? OR t.id = ?)';
+            $params[0] .= 'ssi';
+            $searchTerm = '%' . $search . '%';
+            array_push($params, $searchTerm, $searchTerm, $search);
         }
         if (!empty($bulan)) {
             $where_clauses[] = 'MONTH(t.tanggal) = ?';
@@ -124,13 +127,18 @@ try {
         $query = "
             SELECT 
                 t.id, t.tanggal, t.jenis, t.jumlah, t.keterangan, t.nomor_referensi,
+                t.created_at, t.updated_at,
                 main_acc.nama_akun as nama_akun_utama,
                 kas_acc.nama_akun as nama_akun_kas,
-                tujuan_acc.nama_akun as nama_akun_tujuan
+                tujuan_acc.nama_akun as nama_akun_tujuan,
+                creator.username as created_by_name,
+                updater.username as updated_by_name
             FROM transaksi t
             LEFT JOIN accounts main_acc ON t.account_id = main_acc.id
             LEFT JOIN accounts kas_acc ON t.kas_account_id = kas_acc.id
             LEFT JOIN accounts tujuan_acc ON t.kas_tujuan_account_id = tujuan_acc.id
+            LEFT JOIN users creator ON t.created_by = creator.id
+            LEFT JOIN users updater ON t.updated_by = updater.id
             $where_sql
             ORDER BY t.tanggal DESC, t.id DESC
             LIMIT ? OFFSET ?
@@ -175,6 +183,8 @@ try {
                 if (empty($jenis) || empty($tanggal) || $jumlah <= 0) {
                     throw new Exception("Jenis, tanggal, dan jumlah wajib diisi.");
                 }
+
+                check_period_lock($tanggal, $conn);
 
                 $account_id = null;
                 $kas_account_id = null;
@@ -244,8 +254,8 @@ try {
                 
                 $conn->begin_transaction();
                 
-                $stmt = $conn->prepare("INSERT INTO transaksi (user_id, tanggal, jenis, jumlah, keterangan, nomor_referensi, account_id, kas_account_id, kas_tujuan_account_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param('issdssiiii', $user_id, $tanggal, $jenis, $jumlah, $keterangan, $nomor_referensi, $account_id, $kas_account_id, $kas_tujuan_account_id, $user_id);
+                $stmt = $conn->prepare("INSERT INTO transaksi (user_id, tanggal, jenis, jumlah, keterangan, nomor_referensi, account_id, kas_account_id, kas_tujuan_account_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"); // user_id is data owner, created_by is logged in user
+                $stmt->bind_param('issdssiiii', $user_id, $tanggal, $jenis, $jumlah, $keterangan, $nomor_referensi, $account_id, $kas_account_id, $kas_tujuan_account_id, $logged_in_user_id);
                 
                 if (!$stmt->execute()) {
                     $conn->rollback();
@@ -256,19 +266,19 @@ try {
 
                 // Sinkronisasi ke General Ledger
                 $zero = 0.00;
-                $stmt_gl = $conn->prepare("INSERT INTO general_ledger (user_id, tanggal, keterangan, nomor_referensi, account_id, debit, kredit, ref_id, ref_type, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'transaksi', ?)");
+                $stmt_gl = $conn->prepare("INSERT INTO general_ledger (user_id, tanggal, keterangan, nomor_referensi, account_id, debit, kredit, ref_id, ref_type, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'transaksi', ?)"); // user_id is data owner, created_by is logged in user
                 if ($jenis === 'pemasukan') {
                     // Debit Akun Kas, Kredit Akun Pendapatan
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $jumlah, $zero, $transaksi_id, $user_id); $stmt_gl->execute();
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $account_id, $zero, $jumlah, $transaksi_id, $user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $jumlah, $zero, $transaksi_id, $logged_in_user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $account_id, $zero, $jumlah, $transaksi_id, $logged_in_user_id); $stmt_gl->execute();
                 } elseif ($jenis === 'pengeluaran') {
                     // Debit Akun Beban, Kredit Akun Kas
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $account_id, $jumlah, $zero, $transaksi_id, $user_id); $stmt_gl->execute();
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $zero, $jumlah, $transaksi_id, $user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $account_id, $jumlah, $zero, $transaksi_id, $logged_in_user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $zero, $jumlah, $transaksi_id, $logged_in_user_id); $stmt_gl->execute();
                 } elseif ($jenis === 'transfer') {
                     // Debit Akun Kas Tujuan, Kredit Akun Kas Sumber
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_tujuan_account_id, $jumlah, $zero, $transaksi_id, $user_id); $stmt_gl->execute();
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $zero, $jumlah, $transaksi_id, $user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_tujuan_account_id, $jumlah, $zero, $transaksi_id, $logged_in_user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $zero, $jumlah, $transaksi_id, $logged_in_user_id); $stmt_gl->execute();
                 }
                 $stmt_gl->close();
 
@@ -278,7 +288,7 @@ try {
                 break;
 
             case 'get_single':
-                $id = (int)($_GET['id'] ?? 0);
+                $id = (int)($_POST['id'] ?? 0);
                 if ($id <= 0) throw new Exception("ID transaksi tidak valid.");
 
                 $stmt = $conn->prepare("SELECT * FROM transaksi WHERE id = ? AND user_id = ?");
@@ -302,6 +312,14 @@ try {
 
                 if ($id <= 0) throw new Exception("ID transaksi tidak valid untuk diperbarui.");
                 if (empty($jenis) || empty($tanggal) || $jumlah <= 0) throw new Exception("Jenis, tanggal, dan jumlah wajib diisi.");
+
+                // Cek periode lock SEBELUM update
+                check_period_lock($tanggal, $conn);
+                // Cek juga tanggal LAMA dari transaksi yang akan diubah
+                $stmt_old_date = $conn->prepare("SELECT tanggal FROM transaksi WHERE id = ?");
+                $stmt_old_date->bind_param('i', $id);
+                $stmt_old_date->execute();
+                check_period_lock($stmt_old_date->get_result()->fetch_assoc()['tanggal'], $conn);
 
                 // Logika validasi akun yang sama dengan 'add'
                 $account_id = null;
@@ -331,30 +349,30 @@ try {
                 $stmt = $conn->prepare("
                     UPDATE transaksi SET 
                         jenis = ?, tanggal = ?, jumlah = ?, keterangan = ?, nomor_referensi = ?, 
-                        account_id = ?, kas_account_id = ?, kas_tujuan_account_id = ?
+                        account_id = ?, kas_account_id = ?, kas_tujuan_account_id = ?, updated_by = ?
                     WHERE id = ? AND user_id = ?
                 ");
-                $stmt->bind_param('ssdssiiiii', $jenis, $tanggal, $jumlah, $keterangan, $nomor_referensi, $account_id, $kas_account_id, $kas_tujuan_account_id, $id, $user_id);
+                $stmt->bind_param('ssdssiiiiii', $jenis, $tanggal, $jumlah, $keterangan, $nomor_referensi, $account_id, $kas_account_id, $kas_tujuan_account_id, $logged_in_user_id, $id, $user_id);
                 if (!$stmt->execute()) { $conn->rollback(); throw new Exception("Gagal memperbarui transaksi: " . $stmt->error); }
                 $stmt->close();
 
                 // Hapus entri GL lama dan buat yang baru
-                $stmt_delete_gl = $conn->prepare("DELETE FROM general_ledger WHERE ref_id = ? AND ref_type = 'transaksi'");
-                $stmt_delete_gl->bind_param('i', $id);
+                $stmt_delete_gl = $conn->prepare("DELETE FROM general_ledger WHERE ref_id = ? AND ref_type = 'transaksi' AND user_id = ?");
+                $stmt_delete_gl->bind_param('ii', $id, $user_id);
                 $stmt_delete_gl->execute();
                 $stmt_delete_gl->close();
 
-                $stmt_gl = $conn->prepare("INSERT INTO general_ledger (user_id, tanggal, keterangan, nomor_referensi, account_id, debit, kredit, ref_id, ref_type, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'transaksi', ?)");
+                $stmt_gl = $conn->prepare("INSERT INTO general_ledger (user_id, tanggal, keterangan, nomor_referensi, account_id, debit, kredit, ref_id, ref_type, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'transaksi', ?)"); // user_id is data owner, updated_by is logged in user
                 $zero = 0.00;
                 if ($jenis === 'pemasukan') {
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $jumlah, $zero, $id, $user_id); $stmt_gl->execute();
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $account_id, $zero, $jumlah, $id, $user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $jumlah, $zero, $id, $logged_in_user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $account_id, $zero, $jumlah, $id, $logged_in_user_id); $stmt_gl->execute();
                 } elseif ($jenis === 'pengeluaran') {
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $account_id, $jumlah, $zero, $id, $user_id); $stmt_gl->execute();
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $zero, $jumlah, $id, $user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $account_id, $jumlah, $zero, $id, $logged_in_user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $zero, $jumlah, $id, $logged_in_user_id); $stmt_gl->execute();
                 } elseif ($jenis === 'transfer') {
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_tujuan_account_id, $jumlah, $zero, $id, $user_id); $stmt_gl->execute();
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $zero, $jumlah, $id, $user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_tujuan_account_id, $jumlah, $zero, $id, $logged_in_user_id); $stmt_gl->execute();
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi, $kas_account_id, $zero, $jumlah, $id, $logged_in_user_id); $stmt_gl->execute();
                 }
                 $stmt_gl->close();
 
@@ -369,19 +387,25 @@ try {
                     throw new Exception("ID transaksi tidak valid.");
                 }
 
+                // Cek periode lock sebelum hapus
+                $stmt_old_date = $conn->prepare("SELECT tanggal FROM transaksi WHERE id = ?");
+                $stmt_old_date->bind_param('i', $id);
+                $stmt_old_date->execute();
+                check_period_lock($stmt_old_date->get_result()->fetch_assoc()['tanggal'], $conn);
+
                 $conn->begin_transaction();
 
                 $stmt = $conn->prepare("DELETE FROM transaksi WHERE id = ? AND user_id = ?");
                 $stmt->bind_param('ii', $id, $user_id);
                 if (!$stmt->execute()) {
                     $conn->rollback();
-                    throw new Exception("Gagal menghapus transaksi: " . $stmt->error);
+                    throw new Exception("Gagal menghapus transaksi dari tabel utama: " . $stmt->error);
                 }
                 $stmt->close();
 
                 // Hapus juga dari General Ledger
-                $stmt_gl = $conn->prepare("DELETE FROM general_ledger WHERE ref_id = ? AND ref_type = 'transaksi'");
-                $stmt_gl->bind_param('i', $id);
+                $stmt_gl = $conn->prepare("DELETE FROM general_ledger WHERE ref_id = ? AND ref_type = 'transaksi' AND user_id = ?");
+                $stmt_gl->bind_param('ii', $id, $user_id);
                 $stmt_gl->execute();
                 $stmt_gl->close();
 
@@ -395,7 +419,8 @@ try {
         }
     }
 } catch (Exception $e) {
-    if (isset($conn) && $conn->in_transaction) {
+    // Check if in transaction before rolling back, compatible with older PHP versions
+    if (isset($conn) && method_exists($conn, 'in_transaction') && $conn->in_transaction) {
         $conn->rollback();
     }
     http_response_code(400);

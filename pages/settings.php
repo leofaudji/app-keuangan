@@ -26,6 +26,9 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     <button class="nav-link" id="transaksi-settings-tab" data-bs-toggle="tab" data-bs-target="#transaksi-settings" type="button" role="tab">Transaksi</button>
   </li>
   <li class="nav-item" role="presentation">
+    <button class="nav-link" id="accounting-settings-tab" data-bs-toggle="tab" data-bs-target="#accounting-settings" type="button" role="tab">Akuntansi</button>
+  </li>
+  <li class="nav-item" role="presentation">
     <button class="nav-link" id="arus-kas-settings-tab" data-bs-toggle="tab" data-bs-target="#arus-kas-settings" type="button" role="tab">Arus Kas</button>
   </li>
   <li class="nav-item" role="presentation">
@@ -61,6 +64,24 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
                     </div>
                     <hr>
                     <button type="button" class="btn btn-primary" id="save-transaksi-settings-btn"><i class="bi bi-save-fill"></i> Simpan Pengaturan</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Pengaturan Akuntansi -->
+    <div class="tab-pane fade" id="accounting-settings" role="tabpanel">
+        <div class="card card-tab">
+            <div class="card-header">
+                Pengaturan Akuntansi
+            </div>
+            <div class="card-body">
+                <form id="accounting-settings-form">
+                    <div id="accounting-settings-container">
+                        <div class="text-center p-5"><div class="spinner-border" role="status"><span class="visually-hidden">Memuat...</span></div></div>
+                    </div>
+                    <hr>
+                    <button type="button" class="btn btn-primary" id="save-accounting-settings-btn"><i class="bi bi-save-fill"></i> Simpan Pengaturan</button>
                 </form>
             </div>
         </div>

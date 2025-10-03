@@ -27,6 +27,46 @@
   </div>
 </div>
 
+<!-- Modal untuk Jadwal Berulang -->
+<div class="modal fade" id="recurringModal" tabindex="-1" aria-labelledby="recurringModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="recurringModalLabel">Atur Jadwal Berulang</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="recurring-form">
+            <input type="hidden" id="recurring-id" name="id">
+            <input type="hidden" id="recurring-template-type" name="template_type">
+            <input type="hidden" id="recurring-template-data" name="template_data">
+            <input type="hidden" name="action" value="save_template">
+
+            <div class="mb-3">
+                <label for="recurring-name" class="form-label">Nama Template</label>
+                <input type="text" class="form-control" id="recurring-name" name="name" placeholder="cth: Bayar Sewa Bulanan" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Jadwalkan Setiap</label>
+                <div class="input-group">
+                    <input type="number" class="form-control" id="recurring-frequency-interval" name="frequency_interval" value="1" min="1">
+                    <select class="form-select" id="recurring-frequency-unit" name="frequency_unit">
+                        <option value="day">Hari</option>
+                        <option value="week">Minggu</option>
+                        <option value="month" selected>Bulan</option>
+                        <option value="year">Tahun</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mb-3"><label for="recurring-start-date" class="form-label">Mulai Tanggal</label><input type="date" class="form-control" id="recurring-start-date" name="start_date" required></div>
+            <div class="mb-3"><label for="recurring-end-date" class="form-label">Berakhir Tanggal (Opsional)</label><input type="date" class="form-control" id="recurring-end-date" name="end_date"></div>
+        </form>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button><button type="button" class="btn btn-primary" id="save-recurring-template-btn">Simpan Template</button></div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

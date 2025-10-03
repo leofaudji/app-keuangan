@@ -46,43 +46,6 @@ try {
                 $stmt->close();
                 $new_user_id = $conn->insert_id;
 
-                // --- IDE CERMERLANG: Kloning Chart of Accounts (COA) dari admin (user_id=1) ke pengguna baru ---
-                $conn->begin_transaction();
-                try {
-                    // 1. Ambil semua akun dari user_id = 1
-                    $admin_accounts_res = $conn->query("SELECT * FROM accounts WHERE user_id = 1 ORDER BY parent_id ASC, id ASC");
-                    $admin_accounts = $admin_accounts_res->fetch_all(MYSQLI_ASSOC);
-
-                    $old_to_new_id_map = [];
-
-                    // 2. Insert akun baru untuk new_user_id dan petakan ID lama ke ID baru
-                    $stmt_clone = $conn->prepare(
-                        "INSERT INTO accounts (user_id, parent_id, kode_akun, nama_akun, tipe_akun, saldo_normal, cash_flow_category, is_kas, saldo_awal) 
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                    );
-
-                    foreach ($admin_accounts as $acc) {
-                        // Tentukan parent_id baru berdasarkan pemetaan. Jika parent_id lama adalah NULL, yang baru juga NULL.
-                        $new_parent_id = isset($acc['parent_id']) ? ($old_to_new_id_map[$acc['parent_id']] ?? null) : null;
-                        
-                        // Saldo awal untuk pengguna baru selalu 0
-                        $saldo_awal_nol = 0.00;
-
-                        $stmt_clone->bind_param('iisssssid', $new_user_id, $new_parent_id, $acc['kode_akun'], $acc['nama_akun'], $acc['tipe_akun'], $acc['saldo_normal'], $acc['cash_flow_category'], $acc['is_kas'], $saldo_awal_nol);
-                        $stmt_clone->execute();
-
-                        // Simpan pemetaan dari ID akun admin lama ke ID akun baru yang baru saja dibuat
-                        $old_to_new_id_map[$acc['id']] = $conn->insert_id;
-                    }
-                    $stmt_clone->close();
-                    $conn->commit();
-                } catch (Exception $clone_error) {
-                    $conn->rollback();
-                    // Hapus user yang baru dibuat jika kloning COA gagal agar tidak ada user tanpa COA
-                    $conn->query("DELETE FROM users WHERE id = $new_user_id");
-                    throw new Exception("Gagal mengkloning bagan akun untuk pengguna baru: " . $clone_error->getMessage());
-                }
-                // --- Akhir Logika Kloning ---
 
                 log_activity($_SESSION['username'], 'Tambah Pengguna', "Pengguna baru '{$username}' ditambahkan.");
                 echo json_encode(['status' => 'success', 'message' => 'Pengguna berhasil ditambahkan.']);

@@ -9,7 +9,8 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
 }
 
 $conn = Database::getInstance()->getConnection();
-$user_id = $_SESSION['user_id'];
+$user_id = 1; // Semua user mengakses data yang sama
+$logged_in_user_id = $_SESSION['user_id']; // Untuk logging
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -84,12 +85,20 @@ try {
                 gl.keterangan,
                 acc.nama_akun,
                 gl.debit,
-                gl.kredit,
-                gl.user_id,
-                u.username as user_nama
+                gl.kredit,                
+                -- Ambil audit info dari tabel sumber (transaksi atau jurnal_entries)
+                COALESCE(creator_je.username, creator_t.username) as created_by_name,
+                COALESCE(updater_je.username, updater_t.username) as updated_by_name,
+                COALESCE(je.created_at, t.created_at) as created_at,
+                COALESCE(je.updated_at, t.updated_at) as updated_at
             FROM general_ledger gl
             JOIN accounts acc ON gl.account_id = acc.id
-            LEFT JOIN users u ON gl.user_id = u.id
+            LEFT JOIN jurnal_entries je ON gl.ref_id = je.id AND gl.ref_type = 'jurnal'
+            LEFT JOIN transaksi t ON gl.ref_id = t.id AND gl.ref_type = 'transaksi'
+            LEFT JOIN users creator_je ON je.created_by = creator_je.id
+            LEFT JOIN users updater_je ON je.updated_by = updater_je.id
+            LEFT JOIN users creator_t ON t.created_by = creator_t.id
+            LEFT JOIN users updater_t ON t.updated_by = updater_t.id
             $where_sql
         ";
 
@@ -149,6 +158,8 @@ try {
             throw new Exception("Jurnal harus memiliki minimal dua baris (satu debit dan satu kredit).");
         }
 
+        check_period_lock($tanggal, $conn);
+
         foreach ($lines as $line) {
             if (empty($line['account_id'])) {
                 throw new Exception("Setiap baris jurnal harus memiliki akun yang dipilih.");
@@ -165,12 +176,11 @@ try {
             throw new Exception("Total jurnal tidak boleh nol.");
         }
 
-        $conn->begin_transaction();
-
         if ($action === 'add') {
+            $conn->begin_transaction();
             // 1. Insert header to get the new ID
-            $stmt_header = $conn->prepare("INSERT INTO jurnal_entries (user_id, tanggal, keterangan, created_by) VALUES (?, ?, ?, ?)");
-            $stmt_header->bind_param('issi', $user_id, $tanggal, $keterangan, $user_id);
+            $stmt_header = $conn->prepare("INSERT INTO jurnal_entries (user_id, tanggal, keterangan, created_by) VALUES (?, ?, ?, ?)"); // user_id is the data owner, created_by is the logged in user
+            $stmt_header->bind_param('issi', $user_id, $tanggal, $keterangan, $logged_in_user_id);
             $stmt_header->execute();
             $jurnal_entry_id = $conn->insert_id;
             $stmt_header->close();
@@ -179,7 +189,7 @@ try {
             // 2. Insert ke tabel detail (jurnal_details)
             $stmt_detail = $conn->prepare("INSERT INTO jurnal_details (jurnal_entry_id, account_id, debit, kredit) VALUES (?, ?, ?, ?)");
             // Sinkronisasi ke General Ledger
-            $stmt_gl = $conn->prepare("INSERT INTO general_ledger (user_id, tanggal, keterangan, nomor_referensi, account_id, debit, kredit, ref_id, ref_type, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'jurnal', ?)");
+            $stmt_gl = $conn->prepare("INSERT INTO general_ledger (user_id, tanggal, keterangan, nomor_referensi, account_id, debit, kredit, ref_id, ref_type, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'jurnal', ?)"); // user_id is data owner, created_by is logged in user
             foreach ($lines as $line) {
                 $account_id = (int)$line['account_id'];
                 $debit = (float)($line['debit'] ?? 0);
@@ -187,23 +197,33 @@ try {
                 if ($debit > 0 || $kredit > 0) {
                     $stmt_detail->bind_param('iidd', $jurnal_entry_id, $account_id, $debit, $kredit);
                     $stmt_detail->execute();
-                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi_jurnal, $account_id, $debit, $kredit, $jurnal_entry_id, $user_id);
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi_jurnal, $account_id, $debit, $kredit, $jurnal_entry_id, $logged_in_user_id);
                     $stmt_gl->execute();
                 }
             }
             $stmt_detail->close();
             $stmt_gl->close();
 
+            $conn->commit();
             log_activity($_SESSION['username'], 'Tambah Entri Jurnal', "Jurnal majemuk baru '{$keterangan}' ditambahkan.");
             echo json_encode(['status' => 'success', 'message' => 'Entri jurnal berhasil ditambahkan.']);
 
         } elseif ($action === 'update') {
             $id = (int)($_POST['id'] ?? 0);
+            $conn->begin_transaction();
             if ($id <= 0) throw new Exception("ID Jurnal tidak valid untuk diperbarui.");
 
+            // Cek periode lock SEBELUM update
+            check_period_lock($tanggal, $conn);
+            // Cek juga tanggal LAMA dari jurnal yang akan diubah
+            $stmt_old_date = $conn->prepare("SELECT tanggal FROM jurnal_entries WHERE id = ?");
+            $stmt_old_date->bind_param('i', $id);
+            $stmt_old_date->execute();
+            check_period_lock($stmt_old_date->get_result()->fetch_assoc()['tanggal'], $conn);
+
             // 1. Update header
-            $stmt_header = $conn->prepare("UPDATE jurnal_entries SET tanggal = ?, keterangan = ?, updated_by = ? WHERE id = ? AND user_id = ?");
-            $stmt_header->bind_param('ssiii', $tanggal, $keterangan, $user_id, $id, $user_id);
+            $stmt_header = $conn->prepare("UPDATE jurnal_entries SET tanggal = ?, keterangan = ?, updated_by = ? WHERE id = ? AND user_id = ?"); // Check against data owner user_id
+            $stmt_header->bind_param('ssiii', $tanggal, $keterangan, $logged_in_user_id, $id, $user_id);
             $stmt_header->execute();
             $stmt_header->close();
 
@@ -214,7 +234,7 @@ try {
             $stmt_delete->close();
 
             // Hapus juga dari General Ledger
-            $stmt_delete_gl = $conn->prepare("DELETE FROM general_ledger WHERE ref_id = ? AND ref_type = 'jurnal'");
+            $stmt_delete_gl = $conn->prepare("DELETE FROM general_ledger WHERE ref_id = ? AND ref_type = 'jurnal' AND user_id = ?");
             $stmt_delete_gl->bind_param('i', $id);
             $stmt_delete_gl->execute();
             $stmt_delete_gl->close();
@@ -222,7 +242,7 @@ try {
             // 3. Insert detail baru
             $nomor_referensi_jurnal = 'JRN-' . $id;
             $stmt_detail = $conn->prepare("INSERT INTO jurnal_details (jurnal_entry_id, account_id, debit, kredit) VALUES (?, ?, ?, ?)");
-            $stmt_gl = $conn->prepare("INSERT INTO general_ledger (user_id, tanggal, keterangan, nomor_referensi, account_id, debit, kredit, ref_id, ref_type, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'jurnal', ?, ?)");
+            $stmt_gl = $conn->prepare("INSERT INTO general_ledger (user_id, tanggal, keterangan, nomor_referensi, account_id, debit, kredit, ref_id, ref_type, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'jurnal', ?)");
             foreach ($lines as $line) {
                 $account_id = (int)$line['account_id'];
                 $debit = (float)($line['debit'] ?? 0);
@@ -230,32 +250,44 @@ try {
                 if ($debit > 0 || $kredit > 0) {
                     $stmt_detail->bind_param('iidd', $id, $account_id, $debit, $kredit);
                     $stmt_detail->execute();
-                    $stmt_gl->bind_param('isssiddiii', $user_id, $tanggal, $keterangan, $nomor_referensi_jurnal, $account_id, $debit, $kredit, $id, $user_id, $user_id);
+                    $stmt_gl->bind_param('isssiddii', $user_id, $tanggal, $keterangan, $nomor_referensi_jurnal, $account_id, $debit, $kredit, $id, $logged_in_user_id);
                     $stmt_gl->execute();
                 }
             }
             $stmt_detail->close();
+            $conn->commit();
             log_activity($_SESSION['username'], 'Update Entri Jurnal', "Jurnal majemuk ID {$id} diperbarui.");
             echo json_encode(['status' => 'success', 'message' => 'Entri jurnal berhasil diperbarui.']);
 
         } elseif ($action === 'delete') {
             $id = (int)($_POST['id'] ?? 0);
             if ($id <= 0) throw new Exception("ID Jurnal tidak valid untuk dihapus.");
+            
+            // Cek periode lock sebelum hapus
+            $stmt_old_date = $conn->prepare("SELECT tanggal FROM jurnal_entries WHERE id = ?");
+            $stmt_old_date->bind_param('i', $id);
+            $stmt_old_date->execute();
+            $old_date = $stmt_old_date->get_result()->fetch_assoc()['tanggal'];
+            check_period_lock($old_date, $conn);
+
+            $conn->begin_transaction();
+
             $stmt = $conn->prepare("DELETE FROM jurnal_entries WHERE id = ? AND user_id = ?");
             $stmt->bind_param('ii', $id, $user_id);
             $stmt->execute();
+            $stmt->close();
+
             // Hapus juga dari General Ledger (CASCADE DELETE di DB akan menangani jurnal_details)
-            $stmt_gl = $conn->prepare("DELETE FROM general_ledger WHERE ref_id = ? AND ref_type = 'jurnal'");
+            $stmt_gl = $conn->prepare("DELETE FROM general_ledger WHERE ref_id = ? AND ref_type = 'jurnal' AND user_id = ?");
             $stmt_gl->bind_param('i', $id);
             $stmt_gl->execute();
             $stmt_gl->close();
 
-            $stmt->close();
+            $conn->commit();
             log_activity($_SESSION['username'], 'Hapus Entri Jurnal', "Jurnal majemuk ID {$id} dihapus.");
             echo json_encode(['status' => 'success', 'message' => 'Entri jurnal berhasil dihapus.']);
         }
 
-        $conn->commit();
     }
 } catch (Exception $e) {
     // Check if in transaction before rolling back, compatible with older PHP versions

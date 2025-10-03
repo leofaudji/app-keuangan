@@ -29,8 +29,8 @@ if (!$is_spa_request) {
 </div>
 
 <!-- Tombol Aksi Cepat -->
-<div class="row g-3 mb-4">
-    <div class="col-md-3">
+<div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-3 mb-4">
+    <div class="col">
         <a href="<?= base_url('/transaksi') ?>" class="card management-card text-decoration-none text-center h-100" id="dashboard-add-transaksi">
             <div class="card-body">
                 <div class="icon-wrapper bg-success-subtle text-success"><i class="bi bi-plus-circle-fill"></i></div>
@@ -38,7 +38,7 @@ if (!$is_spa_request) {
             </div>
         </a>
     </div>
-    <div class="col-md-3">
+    <div class="col">
         <a href="<?= base_url('/entri-jurnal') ?>" class="card management-card text-decoration-none text-center h-100">
             <div class="card-body">
                 <div class="icon-wrapper bg-warning-subtle text-warning"><i class="bi bi-journal-plus"></i></div>
@@ -46,7 +46,15 @@ if (!$is_spa_request) {
             </div>
         </a>
     </div>
-    <div class="col-md-3">
+    <div class="col">
+        <a href="<?= base_url('/konsinyasi') ?>" class="card management-card text-decoration-none text-center h-100">
+            <div class="card-body">
+                <div class="icon-wrapper bg-primary-subtle text-primary"><i class="bi bi-box-seam"></i></div>
+                <h6 class="card-title">Konsinyasi</h6>
+            </div>
+        </a>
+    </div>
+    <div class="col">
         <a href="<?= base_url('/laporan') ?>" class="card management-card text-decoration-none text-center h-100">
             <div class="card-body">
                 <div class="icon-wrapper bg-info-subtle text-info"><i class="bi bi-bar-chart-line-fill"></i></div>
@@ -54,7 +62,7 @@ if (!$is_spa_request) {
             </div>
         </a>
     </div>
-    <div class="col-md-3">
+    <div class="col">
         <a href="<?= base_url('/coa') ?>" class="card management-card text-decoration-none text-center h-100">
             <div class="card-body">
                 <div class="icon-wrapper bg-secondary-subtle text-secondary"><i class="bi bi-journal-bookmark-fill"></i></div>

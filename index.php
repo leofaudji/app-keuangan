@@ -26,7 +26,7 @@ $router->get('/', function() {
     }
     exit;
 });
-$router->get('/dashboard', 'pages/dashboard.php', ['auth', 'log_access']);
+$router->get('/dashboard', 'pages/dashboard.php', ['auth']);
 $router->get('/logout', 'logout.php');
 $router->get('/my-profile/change-password', 'pages/my_profile.php', ['auth']);
 
@@ -34,12 +34,17 @@ $router->get('/my-profile/change-password', 'pages/my_profile.php', ['auth']);
 $router->get('/transaksi', 'pages/transaksi.php', ['auth']);
 $router->get('/daftar-jurnal', 'pages/daftar_jurnal.php', ['auth']);
 $router->get('/konsinyasi', 'pages/konsinyasi.php', ['auth']);
+$router->get('/transaksi-berulang', 'pages/transaksi_berulang.php', ['auth']);
 $router->get('/entri-jurnal', 'pages/entri_jurnal.php', ['auth']);
 $router->get('/coa', 'pages/coa.php', ['auth']);
 $router->get('/saldo-awal-neraca', 'pages/saldo_awal_neraca.php', ['auth']);
 $router->get('/saldo-awal-lr', 'pages/saldo_awal_lr.php', ['auth']);
 $router->get('/laporan', 'pages/laporan.php', ['auth']);
 $router->get('/anggaran', 'pages/anggaran.php', ['auth']);
+$router->get('/tutup-buku', 'pages/tutup_buku.php', ['auth', 'admin']);
+$router->get('/laporan-laba-ditahan', 'pages/laporan_laba_ditahan.php', ['auth']);
+$router->get('/analisis-rasio', 'pages/laporan_analisis_rasio.php', ['auth']); // Nama file halaman sudah benar
+$router->get('/activity-log', 'pages/activity_log.php', ['auth', 'admin']);
 $router->get('/laporan-harian', 'pages/laporan_harian.php', ['auth']);
 $router->get('/buku-besar', 'pages/buku_besar.php', ['auth']);
 $router->get('/settings', 'pages/settings.php', ['auth']);
@@ -73,6 +78,15 @@ $router->post('/api/entri-jurnal', 'api/entri_jurnal_handler.php', ['auth']);
 $router->get('/api/konsinyasi', 'api/konsinyasi_handler.php', ['auth']);
 $router->post('/api/konsinyasi', 'api/konsinyasi_handler.php', ['auth']);
 
+$router->get('/api/recurring', 'api/recurring_handler.php', ['auth']);
+$router->post('/api/recurring', 'api/recurring_handler.php', ['auth']);
+
+$router->get('/api/tutup-buku', 'api/tutup_buku_handler.php', ['auth', 'admin']);
+$router->get('/api/laporan-laba-ditahan', 'api/laporan_laba_ditahan_handler.php', ['auth']);
+$router->post('/api/tutup-buku', 'api/tutup_buku_handler.php', ['auth', 'admin']);
+$router->get('/api/analisis-rasio', 'api/analisis_rasio_handler.php', ['auth']); // Nama file API sudah benar
+
+$router->get('/api/activity-log', 'api/activity_log_handler.php', ['auth', 'admin']);
 $router->get('/api/anggaran', 'api/anggaran_handler.php', ['auth']);
 $router->post('/api/anggaran', 'api/anggaran_handler.php', ['auth']);
 $router->get('/api/settings', 'api/settings_handler.php', ['auth']);

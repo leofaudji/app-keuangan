@@ -65,26 +65,11 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
             <a class="nav-link" href="<?= base_url('/entri-jurnal') ?>"><i class="bi bi-journal-plus"></i> Entri Jurnal</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/konsinyasi') ?>"><i class="bi bi-box-seam"></i> Konsinyasi</a>
+            <a class="nav-link" href="<?= base_url('/transaksi-berulang') ?>"><i class="bi bi-arrow-repeat"></i> Transaksi Berulang</a>
         </li>
 
-        <!-- Laporan & Analisis -->
-        <li class="sidebar-header">Laporan & Analisis</li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/laporan') ?>"><i class="bi bi-bar-chart-line-fill"></i> Laporan Keuangan</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/laporan-harian') ?>"><i class="bi bi-calendar-day"></i> Laporan Harian</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/buku-besar') ?>"><i class="bi bi-book"></i> Buku Besar</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/daftar-jurnal') ?>"><i class="bi bi-list-ol"></i> Daftar Jurnal</a>
-        </li>
-
-        <!-- Pengaturan -->
-        <li class="sidebar-header">Pengaturan</li>
+        <!-- Master Data -->
+        <li class="sidebar-header">Master Data</li>
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/coa') ?>"><i class="bi bi-journal-bookmark-fill"></i> Bagan Akun (COA)</a>
         </li>
@@ -94,15 +79,42 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/saldo-awal-lr') ?>"><i class="bi bi-graph-up-arrow"></i> Saldo Awal L/R</a>
         </li>
+
+        <!-- Laporan & Analisis -->
+        <li class="sidebar-header">Laporan & Analisis</li>
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/settings') ?>"><i class="bi bi-gear-fill"></i> Pengaturan</a>
+            <a class="nav-link" href="<?= base_url('/laporan') ?>"><i class="bi bi-bar-chart-line-fill"></i> Laporan Keuangan</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/daftar-jurnal') ?>"><i class="bi bi-list-ol"></i> Daftar Jurnal</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/buku-besar') ?>"><i class="bi bi-book"></i> Buku Besar</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/laporan-laba-ditahan') ?>"><i class="bi bi-graph-up"></i> Laporan Laba Ditahan</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/laporan-harian') ?>"><i class="bi bi-calendar-day"></i> Laporan Harian</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/analisis-rasio') ?>"><i class="bi bi-pie-chart-fill"></i> Analisis Rasio</a>
         </li>
 
         <!-- Menu Khusus Admin -->
         <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
         <li class="sidebar-header">Administrasi</li>
         <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/settings') ?>"><i class="bi bi-gear-fill"></i> Pengaturan Aplikasi</a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/users') ?>"><i class="bi bi-people-fill"></i> Manajemen Pengguna</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/tutup-buku') ?>"><i class="bi bi-archive-fill"></i> Tutup Buku</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/activity-log') ?>"><i class="bi bi-list-check"></i> Log Aktivitas</a>
         </li>
         <?php endif; ?>
     </ul>

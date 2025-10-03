@@ -55,6 +55,9 @@ if (!$is_spa_request) {
             <button type="button" class="btn btn-sm btn-outline-primary" id="add-jurnal-line-btn"><i class="bi bi-plus-lg"></i> Tambah Baris</button>
             <hr>
             <div class="d-flex justify-content-end">
+                <button type="button" class="btn btn-outline-secondary me-2" id="save-as-recurring-btn">
+                    <i class="bi bi-arrow-repeat"></i> Jadikan Berulang...
+                </button>
                 <button type="submit" class="btn btn-primary" id="save-jurnal-entry-btn"><i class="bi bi-save-fill"></i> Simpan Entri Jurnal</button>
             </div>
         </form>

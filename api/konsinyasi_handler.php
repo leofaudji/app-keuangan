@@ -9,7 +9,8 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
 }
 
 $conn = Database::getInstance()->getConnection();
-$user_id = $_SESSION['user_id'];
+$user_id = 1; // Semua user mengakses data yang sama
+$logged_in_user_id = $_SESSION['user_id']; // Untuk logging
 
 try {
     $action = $_REQUEST['action'] ?? '';
@@ -25,11 +26,11 @@ try {
         if (empty($nama)) throw new Exception("Nama pemasok wajib diisi.");
 
         if ($id > 0) { // Update
-            $stmt = $conn->prepare("UPDATE suppliers SET nama_pemasok = ?, kontak = ? WHERE id = ? AND user_id = ?");
-            $stmt->bind_param('ssii', $nama, $kontak, $id, $user_id);
+            $stmt = $conn->prepare("UPDATE suppliers SET nama_pemasok = ?, kontak = ?, updated_by = ? WHERE id = ? AND user_id = ?");
+            $stmt->bind_param('ssiii', $nama, $kontak, $logged_in_user_id, $id, $user_id);
         } else { // Add
-            $stmt = $conn->prepare("INSERT INTO suppliers (user_id, nama_pemasok, kontak) VALUES (?, ?, ?)");
-            $stmt->bind_param('iss', $user_id, $nama, $kontak);
+            $stmt = $conn->prepare("INSERT INTO suppliers (user_id, nama_pemasok, kontak, created_by) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param('issi', $user_id, $nama, $kontak, $logged_in_user_id);
         }
         $stmt->execute();
         $stmt->close();
@@ -74,11 +75,11 @@ try {
         }
 
         if ($id > 0) { // Update
-            $stmt = $conn->prepare("UPDATE consignment_items SET supplier_id=?, nama_barang=?, harga_jual=?, harga_beli=?, stok_awal=?, tanggal_terima=? WHERE id=? AND user_id=?");
-            $stmt->bind_param('isddisii', $supplier_id, $nama_barang, $harga_jual, $harga_beli, $stok_awal, $tanggal_terima, $id, $user_id);
+            $stmt = $conn->prepare("UPDATE consignment_items SET supplier_id=?, nama_barang=?, harga_jual=?, harga_beli=?, stok_awal=?, tanggal_terima=?, updated_by=? WHERE id=? AND user_id=?");
+            $stmt->bind_param('isddisiii', $supplier_id, $nama_barang, $harga_jual, $harga_beli, $stok_awal, $tanggal_terima, $logged_in_user_id, $id, $user_id);
         } else { // Add
-            $stmt = $conn->prepare("INSERT INTO consignment_items (user_id, supplier_id, nama_barang, harga_jual, harga_beli, stok_awal, tanggal_terima) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param('iisddis', $user_id, $supplier_id, $nama_barang, $harga_jual, $harga_beli, $stok_awal, $tanggal_terima);
+            $stmt = $conn->prepare("INSERT INTO consignment_items (user_id, supplier_id, nama_barang, harga_jual, harga_beli, stok_awal, tanggal_terima, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param('iisddisi', $user_id, $supplier_id, $nama_barang, $harga_jual, $harga_beli, $stok_awal, $tanggal_terima, $logged_in_user_id);
         }
         $stmt->execute();
         $stmt->close();
@@ -109,7 +110,7 @@ try {
     elseif ($action === 'sell_item') {
         $item_id = (int)$_POST['item_id'];
         $qty = (int)$_POST['qty'];
-        $tanggal = $_POST['tanggal'];
+        $tanggal = $_POST['tanggal']; // Ini akan diambil dari form, bukan dari session
         $created_by = $_SESSION['user_id'];
 
         if ($item_id <= 0 || $qty <= 0 || empty($tanggal)) {
@@ -170,7 +171,7 @@ try {
 
         $zero = 0.00;
         // Buat 4 entri di General Ledger
-        $stmt_gl = $conn->prepare("INSERT INTO general_ledger (user_id, tanggal, keterangan, nomor_referensi, account_id, debit, kredit, ref_type, ref_id, consignment_item_id, qty, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 'jurnal', 0, ?, ?, ?)");
+        $stmt_gl = $conn->prepare("INSERT INTO general_ledger (user_id, tanggal, keterangan, nomor_referensi, account_id, debit, kredit, ref_type, ref_id, consignment_item_id, qty, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 'jurnal', 0, ?, ?, ?)"); // ref_id 0 karena ini bukan dari tabel transaksi/jurnal_entries
 
         // 1. (Dr) Kas, (Cr) Pendapatan Konsinyasi
         $stmt_gl->bind_param('isssiddiii', $user_id, $tanggal, $keterangan, $nomor_referensi, $item['kas_acc_id'], $total_penjualan, $zero, $item_id, $qty, $created_by); $stmt_gl->execute();
