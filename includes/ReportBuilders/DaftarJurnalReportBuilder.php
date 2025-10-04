@@ -100,5 +100,8 @@ class DaftarJurnalReportBuilder implements ReportBuilderInterface
         }
         // Add bottom border to the last row
         $this->pdf->Cell(195, 0, '', 'T', 1);
+
+        $this->pdf->signature_date = $this->params['end_date'] ?? date('Y-m-d');
+        $this->pdf->RenderSignatureBlock();
     }
 }

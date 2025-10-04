@@ -228,6 +228,12 @@ function runPageScripts(path) {
         initAnggaranPage();
     } else if (cleanPath === '/users') {
         initUsersPage();
+    } else if (cleanPath === '/laporan-pertumbuhan-laba') {
+        initLaporanPertumbuhanLabaPage();
+    } else if (cleanPath === '/buku-panduan') {
+        // Halaman ini statis dan tidak memerlukan inisialisasi JavaScript.
+        // Cukup daftarkan agar tidak error dan hentikan eksekusi.
+        return; 
     }
 }
 
@@ -1152,7 +1158,7 @@ function initLaporanPage() {
     const labaRugiContent = document.getElementById('laba-rugi-content');
     const labaRugiTglMulai = document.getElementById('laba-rugi-tanggal-mulai');
     const labaRugiTglAkhir = document.getElementById('laba-rugi-tanggal-akhir');
-    const lrCompareSwitch = document.getElementById('lr-compare-switch');
+    const lrCompareModeSelect = document.getElementById('lr-compare-mode');
     const lrPeriod2Container = document.getElementById('lr-period-2');
     const labaRugiTglMulai2 = document.getElementById('laba-rugi-tanggal-mulai-2');
     const labaRugiTglAkhir2 = document.getElementById('laba-rugi-tanggal-akhir-2');
@@ -1403,10 +1409,35 @@ function initLaporanPage() {
             end: labaRugiTglAkhir.value
         });
 
-        if (lrCompareSwitch.checked) {
+        const compareMode = lrCompareModeSelect.value;
+        if (compareMode !== 'none') {
             params.append('compare', 'true');
-            params.append('start2', labaRugiTglMulai2.value);
-            params.append('end2', labaRugiTglAkhir2.value);
+            let start2, end2;
+
+            if (compareMode === 'custom') {
+                start2 = labaRugiTglMulai2.value;
+                end2 = labaRugiTglAkhir2.value;
+            } else {
+                const mainStartDate = new Date(labaRugiTglMulai.value);
+                const mainEndDate = new Date(labaRugiTglAkhir.value);
+
+                if (compareMode === 'previous_period') {
+                    const duration = mainEndDate.getTime() - mainStartDate.getTime();
+                    const prevEndDate = new Date(mainStartDate.getTime() - (24 * 60 * 60 * 1000)); // One day before main start
+                    const prevStartDate = new Date(prevEndDate.getTime() - duration);
+                    start2 = prevStartDate.toISOString().split('T')[0];
+                    end2 = prevEndDate.toISOString().split('T')[0];
+                } else if (compareMode === 'previous_year_month') {
+                    const prevStart = new Date(mainStartDate);
+                    prevStart.setFullYear(prevStart.getFullYear() - 1);
+                    const prevEnd = new Date(mainEndDate);
+                    prevEnd.setFullYear(prevEnd.getFullYear() - 1);
+                    start2 = prevStart.toISOString().split('T')[0];
+                    end2 = prevEnd.toISOString().split('T')[0];
+                }
+            }
+            params.append('start2', start2);
+            params.append('end2', end2);
         }
 
         labaRugiContent.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
@@ -1515,8 +1546,10 @@ function initLaporanPage() {
     labaRugiTab?.addEventListener('shown.bs.tab', loadLabaRugi);
     labaRugiTglMulai.addEventListener('change', handleLabaRugiChange);
     labaRugiTglAkhir.addEventListener('change', handleLabaRugiChange);
-    lrCompareSwitch.addEventListener('change', () => {
-        lrPeriod2Container.classList.toggle('d-none', !lrCompareSwitch.checked);
+    labaRugiTglMulai2.addEventListener('change', handleLabaRugiChange);
+    labaRugiTglAkhir2.addEventListener('change', handleLabaRugiChange);
+    lrCompareModeSelect.addEventListener('change', () => {
+        lrPeriod2Container.classList.toggle('d-none', lrCompareModeSelect.value !== 'custom');
         handleLabaRugiChange();
     });
     arusKasTab?.addEventListener('shown.bs.tab', loadArusKas);
@@ -1528,46 +1561,84 @@ function initLaporanPage() {
     // Event listener untuk tombol PDF (sekarang menggunakan FPDF handler)
     exportNeracaPdfBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        const url = `${basePath}/api/laporan_cetak_handler.php?report=neraca&tanggal=${neracaTanggalInput.value}`;
-        window.open(url, '_blank');
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank';
+        const params = { report: 'neraca', tanggal: neracaTanggalInput.value };
+        for (const key in params) {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = key;
+            hiddenField.value = params[key];
+            form.appendChild(hiddenField);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     });
 
     exportLrPdfBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        const params = new URLSearchParams({ report: 'laba-rugi', start: labaRugiTglMulai.value, end: labaRugiTglAkhir.value });
-        if (lrCompareSwitch.checked) {
-            params.append('compare', 'true');
-            params.append('start2', labaRugiTglMulai2.value);
-            params.append('end2', labaRugiTglAkhir2.value);
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank';
+        const params = { report: 'laba-rugi', start: labaRugiTglMulai.value, end: labaRugiTglAkhir.value, compare_mode: lrCompareModeSelect.value };
+        if (lrCompareModeSelect.value !== 'none') {
+            params.compare = 'true';
+            params.start2 = labaRugiTglMulai2.value;
+            params.end2 = labaRugiTglAkhir2.value;
         }
-        const url = `${basePath}/api/laporan_cetak_handler.php?${params.toString()}`;
-        window.open(url, '_blank');
+        for (const key in params) {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = key;
+            hiddenField.value = params[key];
+            form.appendChild(hiddenField);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     });
 
     exportAkPdfBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        const url = `${basePath}/api/laporan_cetak_handler.php?report=arus-kas&start=${arusKasTglMulai.value}&end=${arusKasTglAkhir.value}`;
-        window.open(url, '_blank');
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank';
+        const params = { report: 'arus-kas', start: arusKasTglMulai.value, end: arusKasTglAkhir.value };
+        for (const key in params) {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = key;
+            hiddenField.value = params[key];
+            form.appendChild(hiddenField);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     });
 
     // Event listener untuk tombol CSV (tetap sama)
     exportNeracaCsvBtn?.addEventListener('click', (e) => {
             e.preventDefault();
-            window.open(`${basePath}/api/laporan_cetak_csv_handler.php?report=neraca&format=csv&tanggal=${neracaTanggalInput.value}`, '_blank');
+            window.open(`${basePath}/api/csv?report=neraca&format=csv&tanggal=${neracaTanggalInput.value}`, '_blank');
     });
     exportLrCsvBtn?.addEventListener('click', (e) => {
         e.preventDefault();
             const params = new URLSearchParams({ report: 'laba-rugi', format: 'csv', start: labaRugiTglMulai.value, end: labaRugiTglAkhir.value });
-            if (lrCompareSwitch.checked) {
+            if (lrCompareModeSelect.value !== 'none') {
                 params.append('compare', 'true');
                 params.append('start2', labaRugiTglMulai2.value);
                 params.append('end2', labaRugiTglAkhir2.value);
             }
-            window.open(`${basePath}/api/laporan_cetak_csv_handler.php?${params.toString()}`, '_blank');
+            window.open(`${basePath}/api/csv?${params.toString()}`, '_blank');
     });
     exportAkCsvBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-            window.open(`${basePath}/api/laporan_cetak_csv_handler.php?report=arus-kas&format=csv&start=${arusKasTglMulai.value}&end=${arusKasTglAkhir.value}`, '_blank');
+            window.open(`${basePath}/api/csv?report=arus-kas&format=csv&start=${arusKasTglMulai.value}&end=${arusKasTglAkhir.value}`, '_blank');
     });
 
     // Initial Load
@@ -1710,13 +1781,26 @@ function initLaporanHarianPage() {
 
     exportPdfBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        const url = `${basePath}/api/laporan_cetak_handler.php?report=laporan-harian&tanggal=${tanggalInput.value}`;
-        window.open(url, '_blank');
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank';
+        const params = { report: 'laporan-harian', tanggal: tanggalInput.value };
+        for (const key in params) {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = key;
+            hiddenField.value = params[key];
+            form.appendChild(hiddenField);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     });
 
     exportCsvBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        window.open(`${basePath}/api/laporan_cetak_csv_handler.php?report=laporan-harian&format=csv&tanggal=${tanggalInput.value}`, '_blank');
+        window.open(`${basePath}/api/csv?report=laporan-harian&format=csv&tanggal=${tanggalInput.value}`, '_blank');
     });
 
     reportContent.addEventListener('click', async (e) => {
@@ -1947,13 +2031,26 @@ function initLaporanLabaDitahanPage() {
 
     exportPdfBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        const url = `${basePath}/api/laporan_cetak_handler.php?report=laporan-laba-ditahan&start_date=${tglMulai.value}&end_date=${tglAkhir.value}`;
-        window.open(url, '_blank');
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank';
+        const params = { report: 'laporan-laba-ditahan', start_date: tglMulai.value, end_date: tglAkhir.value };
+        for (const key in params) {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = key;
+            hiddenField.value = params[key];
+            form.appendChild(hiddenField);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     });
 
     exportCsvBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        const url = `${basePath}/api/laporan_cetak_csv_handler.php?report=laporan-laba-ditahan&format=csv&start_date=${tglMulai.value}&end_date=${tglAkhir.value}`;
+        const url = `${basePath}/api/csv?report=laporan-laba-ditahan&format=csv&start_date=${tglMulai.value}&end_date=${tglAkhir.value}`;
         window.open(url, '_blank');
     });
 
@@ -1966,6 +2063,7 @@ function initAnalisisRasioPage() {
     const analyzeBtn = document.getElementById('ra-tampilkan-btn');
     const contentContainer = document.getElementById('ratio-analysis-content');
     const cardTemplate = document.getElementById('ratio-card-template');
+    const exportPdfBtn = document.getElementById('export-ra-pdf');
 
     if (!analyzeBtn) return;
 
@@ -1980,25 +2078,25 @@ function initAnalisisRasioPage() {
             name: 'Profit Margin',
             formula: '(Laba Bersih / Total Pendapatan) * 100%',
             description: 'Mengukur seberapa besar laba bersih yang dihasilkan dari setiap rupiah pendapatan. Semakin tinggi, semakin baik.',
-            format: (val) => `${(val * 100).toFixed(2)}%`,
-            interpret: (val) => val > 0.1 ? 'Sangat Baik' : (val > 0.05 ? 'Baik' : 'Perlu Perhatian'),
-            color: (val) => val > 0.1 ? 'text-success' : (val > 0.05 ? 'text-warning' : 'text-danger'),
+            format: (val) => val.toFixed(2),
+            interpret: (val) => val < 0.5 ? 'Sehat' : (val < 0.8 ? 'Waspada' : 'Berisiko Tinggi'),
+            color: (val) => val < 0.5 ? 'text-success' : (val < 0.8 ? 'text-warning' : 'text-danger'),
+        },
+        debt_to_equity: {
+            name: 'Debt to Equity Ratio',
+            formula: 'Total Liabilitas / Total Ekuitas',
+            description: 'Mengukur proporsi pembiayaan perusahaan antara utang dan modal sendiri. Semakin rendah, semakin aman posisi keuangan perusahaan.',
+            format: (val) => val.toFixed(2),
+            interpret: (val) => val < 1 ? 'Sehat' : (val < 2 ? 'Waspada' : 'Berisiko Tinggi'),
+            color: (val) => val < 1 ? 'text-success' : (val < 2 ? 'text-warning' : 'text-danger'),
         },
         debt_to_asset: {
             name: 'Debt to Asset Ratio',
             formula: 'Total Liabilitas / Total Aset',
             description: 'Mengukur seberapa besar aset perusahaan yang dibiayai oleh utang. Semakin rendah, semakin baik.',
             format: (val) => val.toFixed(2),
-            interpret: (val) => val < 0.5 ? 'Sehat' : (val < 0.8 ? 'Waspada' : 'Berisiko Tinggi'),
-            color: (val) => val < 0.5 ? 'text-success' : (val < 0.8 ? 'text-warning' : 'text-danger'),
-        },
-        current_ratio: {
-            name: 'Current Ratio (Rasio Lancar)',
-            formula: 'Total Aset Lancar / Total Liabilitas Jangka Pendek',
-            description: 'Mengukur kemampuan perusahaan membayar utang jangka pendeknya dengan aset lancar. Nilai di atas 1 menunjukkan likuiditas yang baik.',
-            format: (val) => val.toFixed(2),
-            interpret: (val) => val > 2 ? 'Sangat Baik' : (val >= 1 ? 'Baik' : 'Perlu Perhatian'),
-            color: (val) => val > 2 ? 'text-success' : (val >= 1 ? 'text-primary' : 'text-danger'),
+            interpret: (val) => val < 0.4 ? 'Sangat Sehat' : (val < 0.6 ? 'Sehat' : 'Berisiko'),
+            color: (val) => val < 0.4 ? 'text-success' : (val < 0.6 ? 'text-primary' : 'text-danger'),
         },
         return_on_equity: {
             name: 'Return on Equity (ROE)',
@@ -2007,6 +2105,22 @@ function initAnalisisRasioPage() {
             format: (val) => `${(val * 100).toFixed(2)}%`,
             interpret: (val) => val > 0.15 ? 'Sangat Baik' : (val > 0.05 ? 'Baik' : 'Kurang Efisien'),
             color: (val) => val > 0.15 ? 'text-success' : (val > 0.05 ? 'text-warning' : 'text-danger'),
+        },
+        return_on_assets: {
+            name: 'Return on Assets (ROA)',
+            formula: '(Laba Bersih / Total Aset) * 100%',
+            description: 'Mengukur efisiensi perusahaan dalam menggunakan asetnya untuk menghasilkan laba. Semakin tinggi, semakin baik.',
+            format: (val) => `${(val * 100).toFixed(2)}%`,
+            interpret: (val) => val > 0.1 ? 'Sangat Efisien' : (val > 0.05 ? 'Efisien' : 'Kurang Efisien'),
+            color: (val) => val > 0.1 ? 'text-success' : (val > 0.05 ? 'text-primary' : 'text-warning'),
+        },
+        asset_turnover: {
+            name: 'Asset Turnover Ratio',
+            formula: 'Total Pendapatan / Total Aset',
+            description: 'Mengukur efisiensi penggunaan aset untuk menghasilkan pendapatan. Semakin tinggi, semakin efisien.',
+            format: (val) => val.toFixed(2) + 'x',
+            interpret: (val) => val > 1.5 ? 'Sangat Efisien' : (val > 1 ? 'Efisien' : 'Kurang Efisien'),
+            color: (val) => val > 1.5 ? 'text-success' : (val > 1 ? 'text-primary' : 'text-warning'),
         }
     };
 
@@ -2073,8 +2187,35 @@ function initAnalisisRasioPage() {
     }
 
     analyzeBtn.addEventListener('click', runAnalysis);
+
+    exportPdfBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank';
+        const params = {
+            report: 'analisis-rasio',
+            date: dateInput.value,
+            compare_date: compareDateInput.value
+        };
+        for (const key in params) {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = key;
+            hiddenField.value = params[key];
+            form.appendChild(hiddenField);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    });
+
     runAnalysis(); // Initial load
 }
+
+// Deklarasikan variabel modal di luar fungsi untuk mencegah duplikasi listener
+let anggaranModalInstance = null;
 
 function initAnggaranPage() {
     const yearFilter = document.getElementById('anggaran-tahun-filter');
@@ -2083,14 +2224,23 @@ function initAnggaranPage() {
     const reportTableBody = document.getElementById('anggaran-report-table-body');
     const chartCanvas = document.getElementById('anggaran-chart');
     const modalEl = document.getElementById('anggaranModal');
-    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     const modalTahunLabel = document.getElementById('modal-tahun-label');
     const managementContainer = document.getElementById('anggaran-management-container');
     const saveAnggaranBtn = document.getElementById('save-anggaran-btn');
+    const exportPdfBtn = document.getElementById('export-anggaran-pdf');
+    const exportCsvBtn = document.getElementById('export-anggaran-csv');
+    const compareSwitch = document.getElementById('anggaran-compare-switch');
+    const trendChartCanvas = document.getElementById('anggaran-trend-chart');
 
     let budgetChart = null;
-
+    let trendChart = null;
+    
     if (!yearFilter || !reportTableBody) return;
+
+    // Inisialisasi instance modal jika belum ada
+    if (!anggaranModalInstance) {
+        anggaranModalInstance = new bootstrap.Modal(modalEl);
+    }
 
     const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
 
@@ -2111,12 +2261,64 @@ function initAnggaranPage() {
         monthFilter.value = currentMonth;
     }
 
+    async function loadTrendChart() {
+        const selectedYear = yearFilter.value;
+        if (!trendChartCanvas) return;
+
+        try {
+            const response = await fetch(`${basePath}/api/anggaran?action=get_trend_data&tahun=${selectedYear}`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            if (trendChart) {
+                trendChart.destroy();
+            }
+
+            const labels = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+            trendChart = new Chart(trendChartCanvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Anggaran Bulanan',
+                            data: result.data.anggaran_bulanan,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            fill: false,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Realisasi Bulanan',
+                            data: result.data.realisasi_bulanan,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            fill: true,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: { responsive: true, scales: { y: { beginAtZero: true } } }
+            });
+        } catch (error) {
+            console.error("Gagal memuat data tren:", error);
+        }
+    }
+
     async function loadReport() {
         const selectedYear = yearFilter.value;
         const selectedMonth = monthFilter.value;
+        const isComparing = compareSwitch.checked;
+
         reportTableBody.innerHTML = '<tr><td colspan="5" class="text-center p-5"><div class="spinner-border"></div></td></tr>';
         try {
-            const response = await fetch(`${basePath}/api/anggaran?action=get_report&tahun=${selectedYear}&bulan=${selectedMonth}`);
+            const params = new URLSearchParams({
+                action: 'get_report',
+                tahun: selectedYear,
+                bulan: selectedMonth,
+                compare: isComparing
+            });
+            const response = await fetch(`${basePath}/api/anggaran?${params.toString()}`);
             const result = await response.json();
 
             // Update Summary Cards
@@ -2124,6 +2326,26 @@ function initAnggaranPage() {
                 document.getElementById('summary-total-anggaran').textContent = currencyFormatter.format(result.summary.total_anggaran);
                 document.getElementById('summary-total-realisasi').textContent = currencyFormatter.format(result.summary.total_realisasi);
                 document.getElementById('summary-sisa-anggaran').textContent = currencyFormatter.format(result.summary.total_sisa);
+            }
+
+            // Update Table Header
+            const tableHeader = document.getElementById('anggaran-report-table-header');
+            if (isComparing) {
+                tableHeader.innerHTML = `
+                    <th>Akun Beban</th>
+                    <th class="text-end">Anggaran (${selectedYear})</th>
+                    <th class="text-end">Realisasi (${selectedYear})</th>
+                    <th class="text-end">Realisasi (${selectedYear - 1})</th>
+                    <th style="width: 20%;">Penggunaan</th>
+                `;
+            } else {
+                tableHeader.innerHTML = `
+                    <th>Akun Beban</th>
+                    <th class="text-end">Anggaran Bulanan</th>
+                    <th class="text-end">Realisasi Belanja</th>
+                    <th class="text-end">Sisa Anggaran</th>
+                    <th style="width: 25%;">Penggunaan</th>
+                `;
             }
 
             reportTableBody.innerHTML = '';
@@ -2135,9 +2357,10 @@ function initAnggaranPage() {
             if (result.status === 'success' && result.data.length > 0) {
                 const labels = result.data.map(item => item.nama_akun);
                 const budgetData = result.data.map(item => item.anggaran_bulanan);
-                const realizationData = result.data.map(item => item.realisasi_belanja);
+                const realizationData = result.data.map(item => item.realisasi_belanja);                
+                const realizationPrevYearData = result.data.map(item => item.realisasi_belanja_lalu);
 
-                budgetChart = new Chart(chartCanvas, {
+                const chartConfig = {
                     type: 'bar',
                     data: {
                         labels: labels,
@@ -2159,7 +2382,19 @@ function initAnggaranPage() {
                         ]
                     },
                     options: { responsive: true, scales: { y: { beginAtZero: true } } }
-                });
+                };
+
+                if (isComparing) {
+                    chartConfig.data.datasets.push({
+                        label: `Realisasi ${selectedYear - 1}`,
+                        data: realizationPrevYearData,
+                        backgroundColor: 'rgba(255, 206, 86, 0.5)',
+                        borderColor: 'rgba(255, 206, 86, 1)',
+                        borderWidth: 1
+                    });
+                }
+
+                budgetChart = new Chart(chartCanvas, chartConfig);
             }
 
             if (result.status === 'success' && result.data.length > 0) {
@@ -2169,19 +2404,36 @@ function initAnggaranPage() {
                     if (percentage > 75) progressBarColor = 'bg-warning';
                     if (percentage >= 100) progressBarColor = 'bg-danger';
 
-                    const row = `
-                        <tr>
-                            <td>${item.nama_akun}</td>
-                            <td class="text-end">${currencyFormatter.format(item.anggaran_bulanan)}</td>
-                            <td class="text-end">${currencyFormatter.format(item.realisasi_belanja)}</td>
-                            <td class="text-end fw-bold ${item.sisa_anggaran < 0 ? 'text-danger' : ''}">${currencyFormatter.format(item.sisa_anggaran)}</td>
-                            <td>
-                                <div class="progress" role="progressbar" style="height: 20px;">
-                                    <div class="progress-bar ${progressBarColor}" style="width: ${Math.min(percentage, 100)}%">${percentage.toFixed(1)}%</div>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
+                    let row;
+                    if (isComparing) {
+                        row = `
+                            <tr>
+                                <td>${item.nama_akun}</td>
+                                <td class="text-end">${currencyFormatter.format(item.anggaran_bulanan)}</td>
+                                <td class="text-end">${currencyFormatter.format(item.realisasi_belanja)}</td>
+                                <td class="text-end text-muted">${currencyFormatter.format(item.realisasi_belanja_lalu)}</td>
+                                <td>
+                                    <div class="progress" role="progressbar" style="height: 20px;">
+                                        <div class="progress-bar ${progressBarColor}" style="width: ${Math.min(percentage, 100)}%">${percentage.toFixed(1)}%</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    } else {
+                        row = `
+                            <tr>
+                                <td>${item.nama_akun}</td>
+                                <td class="text-end">${currencyFormatter.format(item.anggaran_bulanan)}</td>
+                                <td class="text-end">${currencyFormatter.format(item.realisasi_belanja)}</td>
+                                <td class="text-end fw-bold ${item.sisa_anggaran < 0 ? 'text-danger' : ''}">${currencyFormatter.format(item.sisa_anggaran)}</td>
+                                <td>
+                                    <div class="progress" role="progressbar" style="height: 20px;">
+                                        <div class="progress-bar ${progressBarColor}" style="width: ${Math.min(percentage, 100)}%">${percentage.toFixed(1)}%</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    }
                     reportTableBody.insertAdjacentHTML('beforeend', row);
                 });
             } else {
@@ -2191,6 +2443,7 @@ function initAnggaranPage() {
             reportTableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Gagal memuat laporan: ${error.message}</td></tr>`;
         }
     }
+
 
     async function loadBudgetManagement() {
         const selectedYear = yearFilter.value;
@@ -2227,15 +2480,328 @@ function initAnggaranPage() {
         const response = await fetch(`${basePath}/api/anggaran`, { method: 'POST', body: formData });
         const result = await response.json();
         showToast(result.message, result.status === 'success' ? 'success' : 'error');
-        if (result.status === 'success') modal.hide();
+        if (result.status === 'success') anggaranModalInstance.hide();
     });
 
-    tampilkanBtn.addEventListener('click', loadReport);
-    modalEl.addEventListener('show.bs.modal', loadBudgetManagement);
-    modalEl.addEventListener('hidden.bs.modal', loadReport);
+    exportPdfBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+
+        // 1. Ambil gambar dari kedua chart sebagai base64
+        const trendChartImage = trendChart ? trendChart.toBase64Image() : '';
+        const budgetChartImage = budgetChart ? budgetChart.toBase64Image() : '';
+
+        // 2. Buat form sementara untuk mengirim data via POST
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank'; // Buka di tab baru
+
+        const params = {
+            report: 'anggaran',
+            tahun: yearFilter.value,
+            bulan: monthFilter.value,
+            compare: compareSwitch.checked,
+            trend_chart_image: trendChartImage,
+            budget_chart_image: budgetChartImage
+        };
+
+        for (const key in params) {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = key;
+            hiddenField.value = params[key];
+            form.appendChild(hiddenField);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    });
+
+    exportCsvBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const tahun = yearFilter.value;
+        const bulan = monthFilter.value;
+        const isComparing = compareSwitch.checked;
+        const params = new URLSearchParams({ report: 'anggaran', format: 'csv', tahun, bulan, compare: isComparing });
+        const url = `${basePath}/api/csv?${params.toString()}`;
+        window.open(url, '_blank');
+    });
+
+    // Gabungkan listener untuk tombol dan switch
+    tampilkanBtn.addEventListener('click', () => {
+        loadReport();
+        loadTrendChart(); // Perbarui juga grafik tren saat filter tahun berubah
+    });
+    compareSwitch.addEventListener('change', loadReport);
+
+    // Cek apakah listener sudah ada sebelum menambahkannya
+    // Listener untuk modal ini perlu dicek karena modal ada di luar area konten utama SPA
+    if (!modalEl.dataset.listenerAttached) {
+        modalEl.addEventListener('show.bs.modal', loadBudgetManagement);
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            loadReport(); // Muat ulang laporan setelah modal ditutup
+        });
+        modalEl.dataset.listenerAttached = 'true';
+    }
 
     setupFilters();
-    loadReport();
+    loadReport(); // Muat laporan detail
+    loadTrendChart(); // Muat grafik tren
+}
+
+function initLaporanPertumbuhanLabaPage() {
+    const yearFilter = document.getElementById('lpl-tahun-filter');
+    const tampilkanBtn = document.getElementById('lpl-tampilkan-btn');
+    const chartCanvas = document.getElementById('lpl-chart');
+    const tableBody = document.getElementById('lpl-report-table-body');
+    const compareSwitch = document.getElementById('lpl-compare-switch');
+    const viewModeGroup = document.getElementById('lpl-view-mode');
+    const exportPdfBtn = document.getElementById('export-lpl-pdf');
+    const exportCsvBtn = document.getElementById('export-lpl-csv');
+
+    if (!yearFilter) return;
+
+    let profitChart = null;
+    const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+    const quarters = ["Triwulan 1 (Jan-Mar)", "Triwulan 2 (Apr-Jun)", "Triwulan 3 (Jul-Sep)", "Triwulan 4 (Okt-Des)"];
+    const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+    function setupFilters() {
+        const currentYear = new Date().getFullYear();
+        for (let i = 0; i < 5; i++) {
+            yearFilter.add(new Option(currentYear - i, currentYear - i));
+        }
+        yearFilter.value = currentYear;
+    }
+
+    async function loadReport() {
+        const selectedYear = yearFilter.value;
+        const viewMode = document.querySelector('input[name="view_mode"]:checked').value;
+        const isComparing = compareSwitch.checked;
+        tableBody.innerHTML = `<tr><td colspan="5" class="text-center p-5"><div class="spinner-border"></div></td></tr>`;
+
+        try {
+            const params = new URLSearchParams({
+                view_mode: viewMode,
+                tahun: selectedYear,
+                compare: isComparing
+            });
+            const response = await fetch(`${basePath}/api/laporan-pertumbuhan-laba?${params.toString()}`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            const data = result.data;
+
+            // Render Table
+            tableBody.innerHTML = '';
+            const tableHeader = document.getElementById('lpl-report-table-header');
+            const isCumulative = viewMode === 'cumulative';
+            const isYearly = viewMode === 'yearly';
+            const periodLabel = isCumulative ? 'Bulan (YTD)' : (isYearly ? 'Tahun' : (viewMode === 'monthly' ? 'Bulan' : 'Triwulan'));
+            const growthLabel = isYearly ? 'YoY' : (isCumulative ? 'MoM' : (viewMode === 'monthly' ? 'MoM' : 'QoQ'));
+
+
+            if (isComparing) {
+                tableHeader.innerHTML = `
+                    <th>${periodLabel}</th>
+                    <th class="text-end">Laba Bersih (${selectedYear})</th>
+                    <th class="text-end">Laba Bersih (${selectedYear - 1})</th>
+                    <th class="text-end">Pertumbuhan ${growthLabel}</th>
+                    <th class="text-end">Pertumbuhan YoY</th>
+                `;
+            } else {
+                tableHeader.innerHTML = `
+                    <th>${periodLabel}</th>
+                    <th class="text-end">Total Pendapatan</th>
+                    <th class="text-end">Total Beban</th>
+                    <th class="text-end">Laba (Rugi) Bersih</th>
+                    <th class="text-end">Pertumbuhan ${growthLabel}</th>
+                `;
+            }
+            data.forEach(row => {
+                let growthHtml;
+                if (row.pertumbuhan > 0) {
+                    growthHtml = `<span class="text-success"><i class="bi bi-arrow-up"></i> ${row.pertumbuhan.toFixed(2)}%</span>`;
+                } else if (row.pertumbuhan < 0) {
+                    growthHtml = `<span class="text-danger"><i class="bi bi-arrow-down"></i> ${Math.abs(row.pertumbuhan).toFixed(2)}%</span>`;
+                } else {
+                    growthHtml = `<span>-</span>`;
+                }
+
+                let tableRow;
+                let periodName;
+                if (viewMode === 'quarterly') {
+                    periodName = quarters[row.triwulan - 1];
+                } else if (viewMode === 'yearly') {
+                    periodName = row.tahun;
+                } else { // monthly or cumulative
+                    periodName = months[row.bulan - 1];
+                }
+                if (isComparing) {
+                    let yoyGrowthHtml;
+                    if (row.pertumbuhan_yoy > 0) {
+                        yoyGrowthHtml = `<span class="text-success"><i class="bi bi-arrow-up"></i> ${row.pertumbuhan_yoy.toFixed(2)}%</span>`;
+                    } else if (row.pertumbuhan_yoy < 0) {
+                        yoyGrowthHtml = `<span class="text-danger"><i class="bi bi-arrow-down"></i> ${Math.abs(row.pertumbuhan_yoy).toFixed(2)}%</span>`;
+                    } else {
+                        yoyGrowthHtml = `<span>-</span>`;
+                    }
+                    tableRow = `
+                        <tr>
+                            <td>${periodName}</td>
+                            <td class="text-end fw-bold ${row.laba_bersih < 0 ? 'text-danger' : ''}">${currencyFormatter.format(row.laba_bersih)}</td>
+                            <td class="text-end text-muted">${currencyFormatter.format(row.laba_bersih_lalu)}</td>
+                            <td class="text-end">${growthHtml}</td>
+                            <td class="text-end">${yoyGrowthHtml}</td>
+                        </tr>
+                    `;
+                } else {
+                    tableRow = `
+                        <tr>
+                            <td>${periodName}</td>
+                            <td class="text-end">${currencyFormatter.format(row.total_pendapatan)}</td>
+                            <td class="text-end">${currencyFormatter.format(row.total_beban)}</td>
+                            <td class="text-end fw-bold ${row.laba_bersih < 0 ? 'text-danger' : ''}">${currencyFormatter.format(row.laba_bersih)}</td>
+                            <td class="text-end">${growthHtml}</td>
+                        </tr>
+                    `;
+                }
+                tableBody.insertAdjacentHTML('beforeend', tableRow);
+            });
+
+            // Render Chart
+            if (profitChart) {
+                profitChart.destroy();
+            }
+
+            let chartLabels;
+            if (viewMode === 'quarterly') {
+                chartLabels = ["Q1", "Q2", "Q3", "Q4"];
+            } else if (viewMode === 'yearly') {
+                chartLabels = data.map(d => d.tahun);
+            } else { // monthly or cumulative
+                chartLabels = months.map(m => m.substring(0, 3));
+            }
+
+            const isCumulativeView = viewMode === 'cumulative';
+
+            const chartConfig = {
+                type: isCumulativeView ? 'line' : 'bar',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        label: `Laba Bersih ${selectedYear}`,
+                        data: data.map(d => d.laba_bersih),
+                        // Atur warna berdasarkan tipe chart
+                        backgroundColor: isCumulativeView 
+                            ? 'rgba(0, 122, 255, 0.1)' 
+                            : data.map(d => d.laba_bersih >= 0 ? 'rgba(25, 135, 84, 0.6)' : 'rgba(220, 53, 69, 0.6)'),
+                        borderColor: isCumulativeView 
+                            ? 'rgba(0, 122, 255, 1)' 
+                            : data.map(d => d.laba_bersih >= 0 ? 'rgba(25, 135, 84, 1)' : 'rgba(220, 53, 69, 1)'),
+                        borderWidth: isCumulativeView ? 2 : 1,
+                        fill: isCumulativeView, // Aktifkan fill hanya untuk line chart
+                        tension: 0.3 // Buat garis lebih halus
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += currencyFormatter.format(context.parsed.y);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: value => currencyFormatter.format(value) }
+                        }
+                    }
+                }
+            };
+
+            if (isComparing) {
+                chartConfig.data.datasets.push({
+                    label: `Laba Bersih ${selectedYear - 1}`,
+                    data: data.map(d => d.laba_bersih_lalu),
+                    backgroundColor: 'rgba(108, 117, 125, 0.5)',
+                    borderColor: 'rgba(108, 117, 125, 1)',
+                    borderWidth: 1,
+                    type: 'line', // Tampilkan sebagai garis untuk perbandingan
+                    tension: 0.1
+                });
+            }
+            profitChart = new Chart(chartCanvas, chartConfig);
+
+        } catch (error) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Gagal memuat laporan: ${error.message}</td></tr>`;
+        }
+    }
+
+    // Cukup tambahkan listener secara langsung. SPA akan menghapusnya saat navigasi.
+    tampilkanBtn.addEventListener('click', loadReport);
+    viewModeGroup.addEventListener('change', loadReport);
+    compareSwitch.addEventListener('change', loadReport);
+
+    exportPdfBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+
+        // 1. Ambil gambar chart sebagai base64
+        const chartImage = profitChart ? profitChart.toBase64Image() : '';
+
+        // 2. Buat form sementara untuk mengirim data via POST
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank'; // Buka di tab baru
+
+        const params = {
+            report: 'laporan-pertumbuhan-laba',
+            tahun: yearFilter.value,
+            view_mode: document.querySelector('input[name="view_mode"]:checked').value,
+            compare: compareSwitch.checked,
+            chart_image: chartImage // Kirim data gambar
+        };
+
+        for (const key in params) {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = key;
+            hiddenField.value = params[key];
+            form.appendChild(hiddenField);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    });
+
+    exportCsvBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const params = new URLSearchParams({
+            report: 'laporan-pertumbuhan-laba',
+            format: 'csv',
+            tahun: yearFilter.value,
+            view_mode: document.querySelector('input[name="view_mode"]:checked').value,
+            compare: compareSwitch.checked
+        });
+        window.open(`${basePath}/api/csv?${params.toString()}`, '_blank');
+    });
+
+    setupFilters();
+    loadReport(); // Initial load
 }
 
 function initTransaksiBerulangPage() {
@@ -3004,14 +3570,27 @@ function initBukuBesarPage() {
     exportPdfBtn?.addEventListener('click', (e) => {
         e.preventDefault();
         if (!akunFilter.value) { showToast('Pilih akun terlebih dahulu.', 'error'); return; }
-        const url = `${basePath}/api/laporan_cetak_handler.php?report=buku-besar&account_id=${akunFilter.value}&start_date=${tglMulai.value}&end_date=${tglAkhir.value}`;
-        window.open(url, '_blank');
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank';
+        const params = { report: 'buku-besar', account_id: akunFilter.value, start_date: tglMulai.value, end_date: tglAkhir.value };
+        for (const key in params) {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = key;
+            hiddenField.value = params[key];
+            form.appendChild(hiddenField);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     });
 
     exportCsvBtn?.addEventListener('click', (e) => {
         e.preventDefault();
         if (!akunFilter.value) { showToast('Pilih akun terlebih dahulu.', 'error'); return; }
-        const url = `${basePath}/api/laporan_cetak_csv_handler.php?report=buku-besar&account_id=${akunFilter.value}&start_date=${tglMulai.value}&end_date=${tglAkhir.value}`;
+        const url = `${basePath}/api/csv?report=buku-besar&account_id=${akunFilter.value}&start_date=${tglMulai.value}&end_date=${tglAkhir.value}`;
         window.open(url, '_blank');
     });
 
@@ -3367,15 +3946,27 @@ function initDaftarJurnalPage() {
     // --- Export Listeners ---
     exportPdfBtn?.addEventListener('click', (e) => {
         e.preventDefault();
-        const params = new URLSearchParams({ report: 'daftar-jurnal', search: searchInput.value, start_date: startDateFilter.value, end_date: endDateFilter.value });
-        const url = `${basePath}/api/laporan_cetak_handler.php?${params.toString()}`;
-        window.open(url, '_blank');
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank';
+        const params = { report: 'daftar-jurnal', search: searchInput.value, start_date: startDateFilter.value, end_date: endDateFilter.value };
+        for (const key in params) {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = key;
+            hiddenField.value = params[key];
+            form.appendChild(hiddenField);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     });
 
     exportCsvBtn?.addEventListener('click', (e) => {
         e.preventDefault();
         const params = new URLSearchParams({ report: 'daftar-jurnal', format: 'csv', search: searchInput.value, start_date: startDateFilter.value, end_date: endDateFilter.value });
-        const url = `${basePath}/api/laporan_cetak_csv_handler.php?${params.toString()}`;
+        const url = `${basePath}/api/csv?${params.toString()}`;
         window.open(url, '_blank');
     });
 
@@ -4128,6 +4719,18 @@ function initGlobalSearch() {
         clearTimeout(debounceTimer);
         spinner.style.display = 'block';
         debounceTimer = setTimeout(performSearch, 500); // Debounce for 500ms
+    });
+
+    resultsContainer.addEventListener('click', (e) => {
+        const link = e.target.closest('.search-result-item');
+        if (link) {
+            e.preventDefault();
+            const url = link.href;
+            // Tutup modal secara manual
+            searchModal.hide();
+            // Gunakan fungsi navigate SPA untuk pindah halaman dan menangani hash
+            navigate(url);
+        }
     });
 
     searchModalEl.addEventListener('shown.bs.modal', () => {

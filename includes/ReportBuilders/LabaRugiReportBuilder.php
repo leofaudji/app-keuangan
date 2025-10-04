@@ -35,86 +35,63 @@ class LabaRugiReportBuilder implements ReportBuilderInterface
         $page_orientation = $is_comparison ? 'L' : 'P';
         $this->pdf->AddPage($page_orientation);
 
-        $data = $this->fetchData($user_id, $start, $end);
+        // fetchData sekarang akan menangani pengambilan data utama dan pembanding
+        $data = $this->fetchData($user_id, $start, $end, $is_comparison, $start2, $end2);
         $this->render($data);
     }
 
-    private function fetchData(int $user_id, string $tanggal_mulai, string $tanggal_akhir): array
+    private function fetchPeriodData(int $user_id, string $tanggal_mulai, string $tanggal_akhir): array
     {
-        // Logika disalin dari api/laporan_laba_rugi_handler.php yang sudah direfaktor
         $stmt = $this->conn->prepare("
             SELECT 
-                a.id, a.kode_akun, a.nama_akun, a.tipe_akun, a.saldo_awal,
+                a.id, a.nama_akun, a.tipe_akun,
                 COALESCE(SUM(
                     CASE
                         WHEN a.tipe_akun = 'Pendapatan' THEN gl.kredit - gl.debit
                         WHEN a.tipe_akun = 'Beban' THEN gl.debit - gl.kredit
                         ELSE 0
                     END
-                ), 0) as mutasi
+                ), 0) as total
             FROM accounts a
             LEFT JOIN general_ledger gl ON a.id = gl.account_id AND gl.user_id = a.user_id AND gl.tanggal BETWEEN ? AND ?
             WHERE a.user_id = ? AND a.tipe_akun IN ('Pendapatan', 'Beban')
-            GROUP BY a.id, a.kode_akun, a.nama_akun, a.tipe_akun, a.saldo_awal
+            GROUP BY a.id, a.nama_akun, a.tipe_akun
             ORDER BY a.kode_akun ASC
         ");
         $stmt->bind_param('ssi', $tanggal_mulai, $tanggal_akhir, $user_id);
         $stmt->execute();
         $accounts = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        
-        // Fetch comparison data if needed
-        $accounts2 = [];
-        // Definisikan $is_comparison di dalam scope fungsi ini
-        $is_comparison = isset($this->params['compare']) && $this->params['compare'] === 'true';
-        if (isset($this->params['compare']) && $this->params['compare'] === 'true') {
-            $stmt->bind_param('ssi', $this->params['start2'], $this->params['end2'], $user_id);
-            $stmt->execute();
-            $accounts2 = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        }
-        // Close the statement after all executions are done
         $stmt->close();
-
+    
         $pendapatan = [];
         $beban = [];
         foreach ($accounts as &$acc) {
-            $acc['total'] = (float)$acc['saldo_awal'] + (float)$acc['mutasi'];
             if ($acc['tipe_akun'] === 'Pendapatan') $pendapatan[] = $acc;
             else $beban[] = $acc;
         }
-
-        $pendapatan2 = [];
-        $beban2 = [];
-        foreach ($accounts2 as &$acc) {
-            $acc['total'] = (float)$acc['saldo_awal'] + (float)$acc['mutasi'];
-            if ($acc['tipe_akun'] === 'Pendapatan') $pendapatan2[] = $acc;
-            else $beban2[] = $acc;
-        }
-
+    
         $total_pendapatan = array_sum(array_column($pendapatan, 'total'));
         $total_beban = array_sum(array_column($beban, 'total'));
-        $total_pendapatan2 = array_sum(array_column($pendapatan2, 'total'));
-        $total_beban2 = array_sum(array_column($beban2, 'total'));
-
+    
         return [
-            'current' => [
-                'pendapatan' => $pendapatan,
-                'beban' => $beban,
-                'summary' => [
-                    'total_pendapatan' => $total_pendapatan,
-                    'total_beban' => $total_beban,
-                    'laba_bersih' => $total_pendapatan - $total_beban
-                ]
-            ],
-            'previous' => $is_comparison ? [
-                'pendapatan' => $pendapatan2,
-                'beban' => $beban2,
-                'summary' => [
-                    'total_pendapatan' => $total_pendapatan2,
-                    'total_beban' => $total_beban2,
-                    'laba_bersih' => $total_pendapatan2 - $total_beban2
-                ]
-            ] : null
+            'pendapatan' => $pendapatan,
+            'beban' => $beban,
+            'summary' => [
+                'total_pendapatan' => $total_pendapatan,
+                'total_beban' => $total_beban,
+                'laba_bersih' => $total_pendapatan - $total_beban
+            ]
         ];
+    }
+
+    private function fetchData(int $user_id, string $start, string $end, bool $is_comparison, ?string $start2, ?string $end2): array
+    {
+        $current_data = $this->fetchPeriodData($user_id, $start, $end);
+        $previous_data = null;
+        if ($is_comparison && $start2 && $end2) {
+            $previous_data = $this->fetchPeriodData($user_id, $start2, $end2);
+        }
+        return ['current' => $current_data, 'previous' => $previous_data];
     }
 
     private function render(array $data): void
@@ -123,9 +100,9 @@ class LabaRugiReportBuilder implements ReportBuilderInterface
         $previous = $data['previous'];
         $is_comparison = !!$previous;
 
-        $w_desc = $is_comparison ? 100 : 100;
-        $w_val = $is_comparison ? 50 : 90;
-        $w_change = $is_comparison ? 30 : 0;
+        $w_desc = $is_comparison ? 120 : 100; // Lebar kolom deskripsi
+        $w_val = $is_comparison ? 65 : 90;   // Lebar kolom nilai
+        $w_change = $is_comparison ? 25 : 0;  // Lebar kolom perubahan (%)
 
         // Menggunakan array PHP, bukan Map JavaScript
         $all_accounts = [];
@@ -218,5 +195,8 @@ class LabaRugiReportBuilder implements ReportBuilderInterface
             $this->pdf->Cell($w_val, 8, format_currency_pdf($previous['summary']['laba_bersih']), 'T', 0, 'R');
             $this->pdf->Cell($w_change, 8, $calculate_change_pdf($current['summary']['laba_bersih'], $previous['summary']['laba_bersih']), 'T', 1, 'R');
         }
+
+        $this->pdf->signature_date = $this->params['end'] ?? date('Y-m-d');
+        $this->pdf->RenderSignatureBlock();
     }
 }

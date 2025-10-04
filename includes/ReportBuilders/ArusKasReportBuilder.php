@@ -96,5 +96,8 @@ class ArusKasReportBuilder implements ReportBuilderInterface
         $this->pdf->SetFont('Helvetica', 'B', 10);
         $this->pdf->Cell(100, 6, 'Saldo Kas pada Akhir Periode', 'T', 0);
         $this->pdf->Cell(90, 6, format_currency_pdf($saldo_kas_awal + $kenaikan_penurunan_kas), 'T', 1, 'R');
+
+        $this->pdf->signature_date = $this->params['end'] ?? date('Y-m-d');
+        $this->pdf->RenderSignatureBlock();
     }
 }

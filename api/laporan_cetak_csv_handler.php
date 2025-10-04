@@ -20,6 +20,7 @@ require_once PROJECT_ROOT . '/includes/ReportBuilders/BukuBesarReportBuilder.php
 require_once PROJECT_ROOT . '/includes/ReportBuilders/BukuBesarDataTrait.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/DaftarJurnalReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/LaporanLabaDitahanReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/ReportBuilders/PertumbuhanLabaReportBuilder.php';
 
 $conn = Database::getInstance()->getConnection();
 $user_id = $_SESSION['user_id'];
@@ -288,6 +289,118 @@ try {
                 ]);
             }
             fputcsv($output, ['Saldo Akhir per ' . date('d M Y', strtotime($end_date)), '', '', '', $saldoBerjalan]);
+            break;
+        }
+
+        case 'anggaran': {
+            $tahun = (int)($_GET['tahun'] ?? date('Y'));
+            $bulan = (int)($_GET['bulan'] ?? date('m'));
+            $compare = isset($_GET['compare']) && $_GET['compare'] === 'true';
+            $tahun_lalu = $tahun - 1;
+            $namaBulan = DateTime::createFromFormat('!m', $bulan)->format('F');
+
+            // Logika query disalin dari api/anggaran_handler.php yang sudah mendukung perbandingan
+            $stmt = $conn->prepare("
+                SELECT 
+                    a.nama_akun,
+                    COALESCE(ang_current.jumlah_anggaran / 12, 0) as anggaran_bulanan,
+                    COALESCE(realisasi_current.total_beban, 0) as realisasi_belanja,
+                    COALESCE(realisasi_prev.total_beban, 0) as realisasi_belanja_lalu
+                FROM accounts a
+                LEFT JOIN (
+                    SELECT account_id, jumlah_anggaran 
+                    FROM anggaran 
+                    WHERE user_id = ? AND periode_tahun = ?
+                ) ang_current ON a.id = ang_current.account_id
+                LEFT JOIN (
+                    SELECT account_id, SUM(debit - kredit) as total_beban
+                    FROM general_ledger
+                    WHERE user_id = ? AND YEAR(tanggal) = ? AND MONTH(tanggal) = ?
+                    GROUP BY account_id
+                ) realisasi_current ON a.id = realisasi_current.account_id
+                LEFT JOIN (
+                    SELECT account_id, SUM(debit - kredit) as total_beban
+                    FROM general_ledger
+                    WHERE user_id = ? AND YEAR(tanggal) = ? AND MONTH(tanggal) = ?
+                    GROUP BY account_id
+                ) realisasi_prev ON a.id = realisasi_prev.account_id
+                WHERE a.user_id = ? AND a.tipe_akun = 'Beban'
+                ORDER BY a.kode_akun
+            ");
+            $stmt->bind_param('iiiiiiiii', $user_id, $tahun, $user_id, $tahun, $bulan, $user_id, $tahun_lalu, $bulan, $user_id);
+            $stmt->execute();
+            $data = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            fputcsv($output, ['Laporan Anggaran vs Realisasi']);
+            fputcsv($output, ['Periode:', $namaBulan . ' ' . $tahun]);
+            if ($compare) {
+                fputcsv($output, ['Mode:', 'Perbandingan dengan Tahun ' . $tahun_lalu]);
+            }
+            fputcsv($output, []);
+
+            if ($compare) {
+                fputcsv($output, ['Akun Beban', 'Anggaran ' . $tahun, 'Realisasi ' . $tahun, 'Realisasi ' . $tahun_lalu, 'Penggunaan (%)']);
+            } else {
+                fputcsv($output, ['Akun Beban', 'Anggaran Bulanan', 'Realisasi Belanja', 'Sisa Anggaran', 'Penggunaan (%)']);
+            }
+
+            foreach ($data as $row) {
+                $sisa_anggaran = (float)$row['anggaran_bulanan'] - (float)$row['realisasi_belanja'];
+                $persentase = ((float)$row['anggaran_bulanan'] > 0) ? (((float)$row['realisasi_belanja'] / (float)$row['anggaran_bulanan']) * 100) : 0;
+                if ($compare) {
+                    fputcsv($output, [
+                        $row['nama_akun'], $row['anggaran_bulanan'], $row['realisasi_belanja'], $row['realisasi_belanja_lalu'], number_format($persentase, 2) . '%'
+                    ]);
+                } else {
+                    fputcsv($output, [
+                        $row['nama_akun'], $row['anggaran_bulanan'], $row['realisasi_belanja'], $sisa_anggaran, number_format($persentase, 2) . '%'
+                    ]);
+                }
+            }
+            break;
+        }
+
+        case 'laporan-pertumbuhan-laba': {
+            // Re-use the logic from the Report Builder
+            $tahun = (int)($_GET['tahun'] ?? date('Y'));
+            $view_mode = $_GET['view_mode'] ?? 'monthly';
+            $compare = isset($_GET['compare']) && $_GET['compare'] === 'true';
+
+            $builder = new PertumbuhanLabaReportBuilder(new PDF(), $conn, $_GET + ['user_id' => $user_id]);
+            $reflection = new ReflectionClass($builder);
+            $method = $reflection->getMethod('fetchData');
+            $method->setAccessible(true);
+            $data = $method->invoke($builder);
+
+            fputcsv($output, ['Laporan Pertumbuhan Laba']);
+            fputcsv($output, ['Tahun:', $tahun, 'Tampilan:', ucfirst($view_mode)]);
+            fputcsv($output, []);
+
+            $period_alias = 'bulan';
+            if ($view_mode === 'quarterly') {
+                $period_alias = 'triwulan';
+            } elseif ($view_mode === 'yearly') {
+                $period_alias = 'tahun';
+            }
+
+            $headers = [ucfirst($period_alias), 'Laba Bersih ' . $tahun];
+            if ($compare) $headers[] = 'Laba Bersih ' . $tahun_lalu;
+            fputcsv($output, $headers);
+
+            $months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+            $quarters = ["Q1", "Q2", "Q3", "Q4"];
+
+            foreach ($data as $row) {
+                $periodName = '';
+                if ($view_mode === 'quarterly') $periodName = $quarters[$row['triwulan'] - 1];
+                elseif ($view_mode === 'yearly') $periodName = $row['tahun'];
+                else $periodName = $months[$row['bulan'] - 1];
+
+                $csv_row = [$periodName, $row['laba_bersih']];
+                if ($compare) $csv_row[] = $row['laba_bersih_lalu'];
+                fputcsv($output, $csv_row);
+            }
             break;
         }
 

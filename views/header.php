@@ -55,6 +55,9 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/dashboard') ?>"><i class="bi bi-speedometer2"></i> Dashboard</a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/buku-panduan') ?>"><i class="bi bi-question-circle-fill"></i> Buku Panduan</a>
+        </li>
 
         <!-- Entri Data -->
         <li class="sidebar-header">Entri Data</li>
@@ -74,22 +77,25 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
             <a class="nav-link" href="<?= base_url('/laporan') ?>"><i class="bi bi-bar-chart-line-fill"></i> Laporan Keuangan</a>
         </li>
         <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/laporan-harian') ?>"><i class="bi bi-calendar-day"></i> Laporan Harian</a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/daftar-jurnal') ?>"><i class="bi bi-list-ol"></i> Daftar Jurnal</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/buku-besar') ?>"><i class="bi bi-book"></i> Buku Besar</a>
         </li>
         <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/laporan-pertumbuhan-laba') ?>"><i class="bi bi-graph-up-arrow"></i> Pertumbuhan Laba</a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/laporan-laba-ditahan') ?>"><i class="bi bi-graph-up"></i> Laporan Laba Ditahan</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/anggaran') ?>"><i class="bi bi-bullseye"></i> Anggaran</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/laporan-harian') ?>"><i class="bi bi-calendar-day"></i> Laporan Harian</a>
-        </li>
-        <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/analisis-rasio') ?>"><i class="bi bi-pie-chart-fill"></i> Analisis Rasio</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/anggaran') ?>"><i class="bi bi-bullseye"></i> Anggaran</a>
         </li>
 
         <!-- Master Data -->
@@ -106,18 +112,18 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
 
         <!-- Menu Khusus Admin -->
         <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
-        <li class="sidebar-header">Administrasi</li>
+        <li class="sidebar-header">Administrasi</li>        
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/settings') ?>"><i class="bi bi-gear-fill"></i> Pengaturan Aplikasi</a>
+            <a class="nav-link" href="<?= base_url('/users') ?>"><i class="bi bi-people-fill"></i> Users</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/users') ?>"><i class="bi bi-people-fill"></i> Manajemen Pengguna</a>
+            <a class="nav-link" href="<?= base_url('/activity-log') ?>"><i class="bi bi-list-check"></i> Log Aktivitas</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/tutup-buku') ?>"><i class="bi bi-archive-fill"></i> Tutup Buku</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/activity-log') ?>"><i class="bi bi-list-check"></i> Log Aktivitas</a>
+            <a class="nav-link" href="<?= base_url('/settings') ?>"><i class="bi bi-gear-fill"></i> Pengaturan Aplikasi</a>
         </li>
         <?php endif; ?>
     </ul>
@@ -169,7 +175,7 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
       </div>
       <div class="modal-body">
         <div class="input-group mb-3">
-            <input type="text" class="form-control form-control-lg" id="global-search-input" placeholder="Ketik untuk mencari warga, kegiatan, dokumen..." autocomplete="off">
+            <input type="text" class="form-control form-control-lg" id="global-search-input" placeholder="Ketik disini apa yang dicari..." autocomplete="off">
             <span class="input-group-text" id="global-search-spinner" style="display: none;"><div class="spinner-border spinner-border-sm"></div></span>
         </div>
         <div id="global-search-results">

@@ -1,7 +1,12 @@
 <?php
 require_once __DIR__ . '/functions.php';
+// Muat autoloader Composer
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+}
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/RateLimiter.php';
 
 /**
  * Mengambil nominal iuran yang berlaku untuk periode tertentu dari histori.
@@ -53,4 +58,13 @@ try {
     Config::load(PROJECT_ROOT . '/.env');
 } catch (\Exception $e) {
     die('Error: Could not load configuration. Make sure a .env file exists in the root directory. Details: ' . $e->getMessage());
+}
+
+// --- Terapkan Rate Limiting untuk API ---
+// Cek apakah permintaan saat ini adalah permintaan API
+if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/api/') !== false) {
+    // Batasi 60 permintaan per menit per IP
+    $rateLimiter = new RateLimiter(60, 60); 
+    $clientIp = $_SERVER['REMOTE_ADDR'];
+    $rateLimiter->check($clientIp);
 }

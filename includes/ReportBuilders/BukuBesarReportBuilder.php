@@ -83,5 +83,8 @@ class BukuBesarReportBuilder implements ReportBuilderInterface
         $this->pdf->SetFont('Helvetica', 'B', 10);
         $this->pdf->Cell(160, 8, 'Saldo Akhir', 1, 0, 'R', true);
         $this->pdf->Cell(30, 8, format_currency_pdf($saldoBerjalan), 1, 1, 'R', true);
+
+        $this->pdf->signature_date = $end_date;
+        $this->pdf->RenderSignatureBlock();
     }
 }

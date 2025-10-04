@@ -15,10 +15,14 @@ require_once PROJECT_ROOT . '/includes/ReportBuilders/LaporanHarianReportBuilder
 require_once PROJECT_ROOT . '/includes/ReportBuilders/BukuBesarReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/DaftarJurnalReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/LaporanLabaDitahanReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/ReportBuilders/AnggaranReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/ReportBuilders/PertumbuhanLabaReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/ReportBuilders/AnalisisRasioReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/ReportBuilders/BukuPanduanReportBuilder.php';
 
 $conn = Database::getInstance()->getConnection();
 
-$report_type = $_GET['report'] ?? '';
+$report_type = $_REQUEST['report'] ?? '';
 
 // Ambil nama perumahan dari settings untuk header PDF
 global $housing_name;
@@ -35,7 +39,7 @@ $pdf = new PDF();
 $pdf->AliasNbPages(); // Penting untuk mengetahui total halaman
 
 // Parameter yang akan diteruskan ke builder
-$params = $_GET;
+$params = $_REQUEST; // Gunakan $_REQUEST untuk menerima GET dan POST
 $params['user_id'] = $_SESSION['user_id'];
 
 // Peta dari tipe laporan ke kelas builder-nya
@@ -47,6 +51,10 @@ $builder_map = [
     'buku-besar' => BukuBesarReportBuilder::class,
     'daftar-jurnal' => DaftarJurnalReportBuilder::class,
     'laporan-laba-ditahan' => LaporanLabaDitahanReportBuilder::class,
+    'anggaran' => AnggaranReportBuilder::class,
+    'laporan-pertumbuhan-laba' => PertumbuhanLabaReportBuilder::class,
+    'analisis-rasio' => AnalisisRasioReportBuilder::class,
+    'buku-panduan' => BukuPanduanReportBuilder::class,
 ];
 
 try {

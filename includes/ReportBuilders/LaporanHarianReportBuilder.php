@@ -22,7 +22,7 @@ class LaporanHarianReportBuilder implements ReportBuilderInterface
         $this->pdf->SetTitle('Laporan Transaksi Harian');
         $this->pdf->report_title = 'Laporan Transaksi Harian';
         $this->pdf->report_period = 'Tanggal: ' . date('d F Y', strtotime($tanggal));
-        $this->pdf->AddPage('P'); // Landscape
+        $this->pdf->AddPage('P'); // Portrait
 
         $data = $this->fetchData($user_id, $tanggal);
         $this->render($data);
@@ -82,27 +82,36 @@ class LaporanHarianReportBuilder implements ReportBuilderInterface
         extract($data);
         
         $this->pdf->SetFont('Helvetica', 'B', 10);
-        $this->pdf->Cell(180, 7, 'Saldo Awal Hari Ini:', 0, 0, 'R');
-        $this->pdf->Cell(90, 7, format_currency_pdf($saldo_awal), 0, 1, 'R');
+        $this->pdf->Cell(125, 7, 'Saldo Awal Hari Ini:', 0, 0, 'R');
+        $this->pdf->Cell(35, 7, format_currency_pdf($saldo_awal), 0, 1, 'R');
         $this->pdf->Ln(5);
 
         $this->pdf->SetFont('Helvetica', 'B', 9);
         $this->pdf->SetFillColor(230, 230, 230);
-        $this->pdf->Cell(30, 7, 'ID/Ref', 1, 0, 'C', true); $this->pdf->Cell(50, 7, 'Keterangan', 1, 0, 'C', true); $this->pdf->Cell(50, 7, 'Akun Terkait', 1, 0, 'C', true); $this->pdf->Cell(25, 7, 'Pemasukan', 1, 0, 'C', true); $this->pdf->Cell(35, 7, 'Pengeluaran', 1, 1, 'C', true);
+        $this->pdf->Cell(25, 7, 'ID/Ref', 1, 0, 'C', true);
+        $this->pdf->Cell(65, 7, 'Keterangan', 1, 0, 'C', true);
+        $this->pdf->Cell(35, 7, 'Pemasukan', 1, 0, 'C', true);
+        $this->pdf->Cell(35, 7, 'Pengeluaran', 1, 1, 'C', true);
 
         $this->pdf->SetFont('Helvetica', '', 9);
-        if (empty($transaksi)) { $this->pdf->Cell(275, 7, 'Tidak ada transaksi pada tanggal ini.', 1, 1, 'C'); } 
+        if (empty($transaksi)) { $this->pdf->Cell(160, 7, 'Tidak ada transaksi pada tanggal ini.', 1, 1, 'C'); } 
         else {
             foreach ($transaksi as $tx) {
                 $idDisplay = $tx['ref'] ?: strtoupper($tx['source']) . '-' . $tx['id'];
-                $this->pdf->Cell(30, 6, $idDisplay, 1, 0); $this->pdf->Cell(50, 6, $tx['keterangan'], 1, 0); $this->pdf->Cell(50, 6, $tx['akun_terkait'] ?? '', 1, 0); $this->pdf->Cell(25, 6, $tx['pemasukan'] > 0 ? format_currency_pdf($tx['pemasukan']) : '-', 1, 0, 'R'); $this->pdf->Cell(35, 6, $tx['pengeluaran'] > 0 ? format_currency_pdf($tx['pengeluaran']) : '-', 1, 1, 'R');
+                $this->pdf->Cell(25, 6, $idDisplay, 1, 0);
+                $this->pdf->Cell(65, 6, $tx['keterangan'], 1, 0);
+                $this->pdf->Cell(35, 6, $tx['pemasukan'] > 0 ? format_currency_pdf($tx['pemasukan']) : '-', 1, 0, 'R');
+                $this->pdf->Cell(35, 6, $tx['pengeluaran'] > 0 ? format_currency_pdf($tx['pengeluaran']) : '-', 1, 1, 'R');
             }
         }
 
         $this->pdf->SetFont('Helvetica', 'B', 10);
-        $this->pdf->Cell(130, 7, 'TOTAL', 1, 0, 'R', true); $this->pdf->Cell(25, 7, format_currency_pdf($total_pemasukan), 1, 0, 'R', true); $this->pdf->Cell(35, 7, format_currency_pdf($total_pengeluaran), 1, 1, 'R', true);
+        $this->pdf->Cell(90, 7, 'TOTAL', 1, 0, 'R', true); $this->pdf->Cell(35, 7, format_currency_pdf($total_pemasukan), 1, 0, 'R', true); $this->pdf->Cell(35, 7, format_currency_pdf($total_pengeluaran), 1, 1, 'R', true); // Total width = 90+35+35 = 160
         $this->pdf->Ln(5);
         $this->pdf->SetFont('Helvetica', 'B', 10);
-        $this->pdf->Cell(240, 7, 'Saldo Akhir Hari Ini:', 0, 0, 'R'); $this->pdf->Cell(35, 7, format_currency_pdf($saldo_akhir), 0, 1, 'R');
+        $this->pdf->Cell(125, 7, 'Saldo Akhir Hari Ini:', 0, 0, 'R'); $this->pdf->Cell(35, 7, format_currency_pdf($saldo_akhir), 0, 1, 'R'); // Total width = 125+35 = 160
+
+        $this->pdf->signature_date = $this->params['tanggal'] ?? date('Y-m-d');
+        $this->pdf->RenderSignatureBlock();
     }
 }

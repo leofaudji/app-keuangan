@@ -7,6 +7,17 @@ if (!$is_spa_request) {
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="bi bi-pie-chart-fill"></i> Analisis Rasio Keuangan</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-download"></i> Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="#" id="export-ra-pdf"><i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>Cetak PDF</a></li>
+                <!-- Opsi CSV bisa ditambahkan di sini nanti -->
+            </ul>
+        </div>
+    </div>
 </div>
 
 <!-- Filter -->

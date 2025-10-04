@@ -14,20 +14,6 @@ class NeracaReportBuilder implements ReportBuilderInterface
         $this->params = $params;
     }
 
-    public function build(): void
-    {
-        $tanggal = $this->params['tanggal'] ?? date('Y-m-d');
-        $user_id = $this->params['user_id'];
-
-        $this->pdf->SetTitle('Laporan Neraca');
-        $this->pdf->report_title = 'Laporan Posisi Keuangan (Neraca)';
-        $this->pdf->report_period = 'Per Tanggal: ' . date('d F Y', strtotime($tanggal));
-        $this->pdf->AddPage();
-
-        // Menggunakan fungsi yang sudah ada dari laporan_neraca_handler.php
-        $data = $this->fetchData($user_id, $tanggal);
-        $this->render($data);
-    }
 
     private function fetchData(int $user_id, string $per_tanggal): array
     {
@@ -108,5 +94,23 @@ class NeracaReportBuilder implements ReportBuilderInterface
 
         $this->pdf->SetFont('Helvetica', 'B', 10);
         $this->pdf->Cell(100, 6, 'TOTAL LIABILITAS DAN EKUITAS', 'T', 0); $this->pdf->Cell(90, 6, format_currency_pdf($totalLiabilitasEkuitas), 'T', 1, 'R');
+    }
+
+    // Tambahkan pemanggilan di akhir build, karena render dipanggil di dalam build
+    public function build(): void
+    {
+        $tanggal = $this->params['tanggal'] ?? date('Y-m-d');
+        $user_id = $this->params['user_id'];
+
+        $this->pdf->SetTitle('Laporan Neraca');
+        $this->pdf->report_title = 'Laporan Posisi Keuangan (Neraca)';
+        $this->pdf->report_period = 'Per Tanggal: ' . date('d F Y', strtotime($tanggal));
+        $this->pdf->AddPage();
+
+        // Menggunakan fungsi yang sudah ada dari laporan_neraca_handler.php
+        $data = $this->fetchData($user_id, $tanggal);
+        $this->render($data);
+        $this->pdf->signature_date = $tanggal;
+        $this->pdf->RenderSignatureBlock();
     }
 }

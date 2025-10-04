@@ -5,6 +5,7 @@ class PDF extends FPDF
 {
     public $report_title = '';
     public $report_period = '';
+    public $signature_date = null;
 
     // Page header
     function Header()
@@ -47,14 +48,20 @@ class PDF extends FPDF
     // Page footer
     function Footer()
     {
-        // Panggil blok tanda tangan hanya di halaman terakhir
-        if ($this->PageNo() == $this->AliasNbPages) {
-            $this->SignatureBlock();
-        }
-
         $this->SetY(-15);
         $this->SetFont('Helvetica', 'I', 8);
         $this->Cell(0, 10, 'Halaman ' . $this->PageNo() . '/{nb}', 0, 0, 'C');
+    }
+    
+    function RenderSignatureBlock()
+    {
+        // Cek apakah ruang tersisa cukup untuk blok tanda tangan (sekitar 80mm).
+        // Jika tidak, tambahkan halaman baru secara otomatis.
+        // PageBreakTrigger adalah posisi Y di mana halaman baru akan dibuat.
+        if ($this->GetY() > ($this->PageBreakTrigger - 80)) {
+            $this->AddPage($this->CurOrientation, $this->CurPageSize, $this->CurRotation);
+        }
+        $this->SignatureBlock();
     }
 
     function SignatureBlock()
@@ -62,9 +69,27 @@ class PDF extends FPDF
         // Ambil data dari settings
         $ketua_name = get_setting('signature_ketua_name', '.........................');
         $bendahara_name = get_setting('signature_bendahara_name', '.........................');
-        $ketua_title = 'Ketua RT';
-        $bendahara_title = 'Bendahara';
+        $ketua_title = 'Mengetahui,';
+        $bendahara_title = 'Dibuat oleh,';
         $city = get_setting('app_city', 'Kota Anda');
+
+        // Gunakan tanggal spesifik jika diatur, jika tidak gunakan tanggal hari ini
+        $reportDate = $this->signature_date ? strtotime($this->signature_date) : time();
+        
+        // Array untuk nama bulan dalam bahasa Indonesia
+        $indonesian_months = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        ];
+
+        $day = date('d', $reportDate);
+        $month_num = (int)date('n', $reportDate);
+        $year = date('Y', $reportDate);
+
+        $indonesian_month_name = $indonesian_months[$month_num];
+
+        $formattedDate = $day . ' ' . $indonesian_month_name . ' ' . $year;
 
         // Atur posisi Y untuk blok tanda tangan, misal 80mm dari bawah
         $this->SetY(-80);
@@ -72,12 +97,11 @@ class PDF extends FPDF
         $this->SetFont('Helvetica', '', 10);
 
         // Tanggal
-        $this->Cell(0, 5, $city . ', ' . date('d F Y'), 0, 1, 'R');
+        $this->Cell(95, 5, '', 0, 0); // Sel kosong untuk kolom kiri
+        $this->Cell(95, 5, $city . ', ' . $formattedDate, 0, 1, 'C'); // Tanggal di kolom kanan, rata tengah
         $this->Ln(5);
 
         // Kolom Tanda Tangan
-        $this->Cell(95, 5, 'Mengetahui,', 0, 0, 'C');
-        $this->Cell(95, 5, 'Dibuat oleh,', 0, 1, 'C');
         $this->Cell(95, 5, $ketua_title, 0, 0, 'C');
         $this->Cell(95, 5, $bendahara_title, 0, 1, 'C');
         $this->Ln(20); // Spasi untuk tanda tangan

@@ -77,5 +77,8 @@ class LaporanLabaDitahanReportBuilder implements ReportBuilderInterface
         $this->pdf->SetFont('Helvetica', 'B', 10);
         $this->pdf->Cell(155, 8, 'Saldo Akhir per ' . date('d M Y', strtotime($end_date)), 1, 0, 'R', true);
         $this->pdf->Cell(35, 8, format_currency_pdf($saldo_berjalan), 1, 1, 'R', true);
+
+        $this->pdf->signature_date = $end_date;
+        $this->pdf->RenderSignatureBlock();
     }
 }

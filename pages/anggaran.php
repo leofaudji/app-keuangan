@@ -8,7 +8,16 @@ if (!$is_spa_request) {
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="bi bi-bullseye"></i> Anggaran vs. Realisasi</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#anggaranModal">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-download"></i> Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="#" id="export-anggaran-pdf"><i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>Cetak PDF</a></li>
+                <li><a class="dropdown-item" href="#" id="export-anggaran-csv"><i class="bi bi-file-earmark-spreadsheet-fill text-success me-2"></i>Export CSV</a></li>
+            </ul>
+        </div>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#anggaranModal" id="manage-anggaran-btn">
             <i class="bi bi-pencil-square"></i> Kelola Anggaran
         </button>
     </div>
@@ -18,15 +27,21 @@ if (!$is_spa_request) {
 <div class="card mb-3">
     <div class="card-body">
         <div class="row g-2 align-items-end">
-            <div class="col-md-5">
+            <div class="col-md-4">
                 <label for="anggaran-bulan-filter" class="form-label">Bulan</label>
                 <select id="anggaran-bulan-filter" class="form-select"></select>
             </div>
-            <div class="col-md-5">
+            <div class="col-md-4">
                 <label for="anggaran-tahun-filter" class="form-label">Tahun</label>
                 <select id="anggaran-tahun-filter" class="form-select"></select>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-2 d-flex align-items-center">
+                <div class="form-check form-switch pt-3">
+                    <input class="form-check-input" type="checkbox" role="switch" id="anggaran-compare-switch">
+                    <label class="form-check-label" for="anggaran-compare-switch">Bandingkan</label>
+                </div>
+            </div>
+            <div class="col-md-2 d-flex">
                 <button class="btn btn-primary w-100" id="anggaran-tampilkan-btn"><i class="bi bi-search"></i> Tampilkan</button>
             </div>
         </div>
@@ -61,6 +76,16 @@ if (!$is_spa_request) {
     </div>
 </div>
 
+<!-- Trend Chart -->
+<div class="card mb-3">
+    <div class="card-header">
+        Grafik Tren Anggaran vs. Realisasi Bulanan
+    </div>
+    <div class="card-body">
+        <canvas id="anggaran-trend-chart"></canvas>
+    </div>
+</div>
+
 <!-- Chart -->
 <div class="card mb-3">
     <div class="card-header">
@@ -76,13 +101,7 @@ if (!$is_spa_request) {
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
-                    <tr>
-                        <th>Akun Beban</th>
-                        <th class="text-end">Anggaran Bulanan</th>
-                        <th class="text-end">Realisasi Belanja</th>
-                        <th class="text-end">Sisa Anggaran</th>
-                        <th style="width: 25%;">Penggunaan</th>
-                    </tr>
+                    <tr id="anggaran-report-table-header"></tr>
                 </thead>
                 <tbody id="anggaran-report-table-body"></tbody>
             </table>

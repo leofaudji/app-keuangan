@@ -27,6 +27,7 @@ $router->get('/', function() {
     exit;
 });
 $router->get('/dashboard', 'pages/dashboard.php', ['auth']);
+$router->get('/buku-panduan', 'pages/buku_panduan.php', ['auth']);
 $router->get('/logout', 'logout.php');
 $router->get('/my-profile/change-password', 'pages/my_profile.php', ['auth']);
 
@@ -43,6 +44,7 @@ $router->get('/laporan', 'pages/laporan.php', ['auth']);
 $router->get('/anggaran', 'pages/anggaran.php', ['auth']);
 $router->get('/tutup-buku', 'pages/tutup_buku.php', ['auth', 'admin']);
 $router->get('/laporan-laba-ditahan', 'pages/laporan_laba_ditahan.php', ['auth']);
+$router->get('/laporan-pertumbuhan-laba', 'pages/laporan_pertumbuhan_laba.php', ['auth']);
 $router->get('/analisis-rasio', 'pages/laporan_analisis_rasio.php', ['auth']); // Nama file halaman sudah benar
 $router->get('/activity-log', 'pages/activity_log.php', ['auth', 'admin']);
 $router->get('/laporan-harian', 'pages/laporan_harian.php', ['auth']);
@@ -64,8 +66,9 @@ $router->post('/api/coa', 'api/coa_handler.php', ['auth']);
 $router->get('/api/laporan/neraca', 'api/laporan_neraca_handler.php', ['auth']);
 $router->get('/api/laporan/laba-rugi', 'api/laporan_laba_rugi_handler.php', ['auth']);
 $router->get('/api/laporan-harian', 'api/laporan_harian_handler.php', ['auth']);
-$router->get('/api/laporan/cetak', 'api/laporan_cetak_csv_handler.php', ['auth']); // Rute untuk cetak CSV
-$router->get('/api/laporan_cetak_handler.php', 'api/laporan_cetak_handler.php', ['auth']); // Rute untuk cetak PDF
+$router->get('/api/csv', 'api/laporan_cetak_csv_handler.php', ['auth']); // Rute baru untuk cetak CSV
+$router->get('/api/pdf', 'api/laporan_cetak_handler.php', ['auth']); // Rute baru untuk cetak PDF (GET)
+$router->post('/api/pdf', 'api/laporan_cetak_handler.php', ['auth']); // Rute baru untuk cetak PDF (POST)
 $router->get('/api/saldo-awal-neraca', 'api/saldo_awal_neraca_handler.php', ['auth']);
 $router->post('/api/saldo-awal-neraca', 'api/saldo_awal_neraca_handler.php', ['auth']);
 $router->get('/api/saldo-awal-lr', 'api/saldo_awal_lr_handler.php', ['auth']);
@@ -84,6 +87,7 @@ $router->post('/api/recurring', 'api/recurring_handler.php', ['auth']);
 $router->get('/api/tutup-buku', 'api/tutup_buku_handler.php', ['auth', 'admin']);
 $router->get('/api/laporan-laba-ditahan', 'api/laporan_laba_ditahan_handler.php', ['auth']);
 $router->post('/api/tutup-buku', 'api/tutup_buku_handler.php', ['auth', 'admin']);
+$router->get('/api/laporan-pertumbuhan-laba', 'api/laporan_pertumbuhan_laba_handler.php', ['auth']);
 $router->get('/api/analisis-rasio', 'api/analisis_rasio_handler.php', ['auth']); // Nama file API sudah benar
 
 $router->get('/api/activity-log', 'api/activity_log_handler.php', ['auth', 'admin']);
@@ -91,6 +95,7 @@ $router->get('/api/anggaran', 'api/anggaran_handler.php', ['auth']);
 $router->post('/api/anggaran', 'api/anggaran_handler.php', ['auth']);
 $router->get('/api/settings', 'api/settings_handler.php', ['auth']);
 $router->post('/api/settings', 'api/settings_handler.php', ['auth']);
+$router->get('/api/global-search', 'api/global_search_handler.php', ['auth']); // API untuk pencarian global
 $router->get('/api/users', 'api/users_handler.php', ['auth', 'admin']); // API untuk manajemen pengguna
 $router->post('/api/users', 'api/users_handler.php', ['auth', 'admin']);
 
