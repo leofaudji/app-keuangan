@@ -72,6 +72,12 @@ class PDF extends FPDF
         $ketua_title = 'Mengetahui,';
         $bendahara_title = 'Dibuat oleh,';
         $city = get_setting('app_city', 'Kota Anda');
+        
+        // Ambil path gambar stempel dan tanda tangan dari pengaturan
+        $stamp_path = get_setting('stamp_image');
+        $signature_path = get_setting('signature_image');
+        $full_stamp_path = $stamp_path ? PROJECT_ROOT . '/' . $stamp_path : null;
+        $full_signature_path = $signature_path ? PROJECT_ROOT . '/' . $signature_path : null;
 
         // Gunakan tanggal spesifik jika diatur, jika tidak gunakan tanggal hari ini
         $reportDate = $this->signature_date ? strtotime($this->signature_date) : time();
@@ -104,7 +110,27 @@ class PDF extends FPDF
         // Kolom Tanda Tangan
         $this->Cell(95, 5, $ketua_title, 0, 0, 'C');
         $this->Cell(95, 5, $bendahara_title, 0, 1, 'C');
-        $this->Ln(20); // Spasi untuk tanda tangan
+
+        // Simpan posisi Y saat ini sebelum menambahkan gambar
+        $y_pos_before_images = $this->GetY();
+
+        // Render Stempel di kolom kiri (Ketua)
+        if ($full_stamp_path && file_exists($full_stamp_path)) {
+            // Posisi X: 10mm (margin) + (95mm (lebar kolom) - 35mm (lebar gambar)) / 2 = 40mm
+            // Posisi Y: sedikit di bawah judul
+            $this->Image($full_stamp_path, 40, $y_pos_before_images + 2, 35, 0, 'PNG');
+        }
+
+        // Render Tanda Tangan di kolom kanan (Bendahara)
+        if ($full_signature_path && file_exists($full_signature_path)) {
+            // Posisi X: 105mm (awal kolom kanan) + (95mm (lebar kolom) - 40mm (lebar gambar)) / 2 = 132.5mm
+            // Posisi Y: sedikit di bawah judul
+            $this->Image($full_signature_path, 132.5, $y_pos_before_images + 2, 40, 0, 'PNG');
+        }
+
+        // Kembalikan posisi Y ke bawah gambar untuk mencetak nama
+        $this->SetY($y_pos_before_images + 20); // Spasi 20mm untuk area tanda tangan
+
         $this->SetFont('Helvetica', 'B', 10);
         $this->Cell(95, 5, $ketua_name, 0, 0, 'C');
         $this->Cell(95, 5, $bendahara_name, 0, 1, 'C');

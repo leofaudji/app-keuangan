@@ -50,7 +50,7 @@ CREATE TABLE `transaksi` (
   `tanggal` date NOT NULL,
   `jenis` enum('pemasukan','pengeluaran','transfer') NOT NULL,
   `jumlah` decimal(15,2) NOT NULL,
-  `keterangan` varchar(255) DEFAULT NULL,  
+  `keterangan` text DEFAULT NULL,  
   `nomor_referensi` varchar(50) DEFAULT NULL COMMENT 'Nomor faktur/transaksi',
   `kas_account_id` int(11) NOT NULL COMMENT 'Akun kas/bank yang terpengaruh',
   `kas_tujuan_account_id` int(11) DEFAULT NULL COMMENT 'Untuk transfer antar akun kas',

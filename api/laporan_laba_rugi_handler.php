@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once PROJECT_ROOT . '/includes/Repositories/LaporanRepository.php';
 
 if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
     http_response_code(401);
@@ -21,51 +22,8 @@ $tanggal_akhir_2 = $_GET['end2'] ?? null;
 
 try {
     function fetch_lr_data($conn, $user_id, $start, $end) {
-        $stmt = $conn->prepare("
-            SELECT 
-                a.id, a.kode_akun, a.nama_akun, a.tipe_akun, a.saldo_awal,
-                COALESCE(SUM(
-                    CASE
-                        WHEN a.tipe_akun = 'Pendapatan' THEN gl.kredit - gl.debit
-                        WHEN a.tipe_akun = 'Beban' THEN gl.debit - gl.kredit
-                        ELSE 0
-                    END
-                ), 0) as mutasi
-            FROM accounts a
-            LEFT JOIN general_ledger gl ON a.id = gl.account_id AND gl.user_id = a.user_id AND gl.tanggal BETWEEN ? AND ?
-            WHERE a.user_id = ? AND a.tipe_akun IN ('Pendapatan', 'Beban')
-            GROUP BY a.id, a.kode_akun, a.nama_akun, a.tipe_akun, a.saldo_awal
-            ORDER BY a.kode_akun ASC
-        ");
-        $stmt->bind_param('ssi', $start, $end, $user_id);
-        $stmt->execute();
-        $accounts = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-
-        $pendapatan = [];
-        $beban = [];
-        foreach ($accounts as &$acc) {
-            $acc['total'] = (float)$acc['saldo_awal'] + (float)$acc['mutasi'];
-            if ($acc['tipe_akun'] === 'Pendapatan') {
-                $pendapatan[] = $acc;
-            } else {
-                $beban[] = $acc;
-            }
-        }
-
-        $total_pendapatan = array_sum(array_column($pendapatan, 'total'));
-        $total_beban = array_sum(array_column($beban, 'total'));
-        $laba_bersih = $total_pendapatan - $total_beban;
-
-        return [
-            'pendapatan' => $pendapatan,
-            'beban' => $beban,
-            'summary' => [
-                'total_pendapatan' => $total_pendapatan,
-                'total_beban' => $total_beban,
-                'laba_bersih' => $laba_bersih
-            ]
-        ];
+        $repo = new LaporanRepository($conn);
+        return $repo->getLabaRugiData($user_id, $start, $end);
     }
 
     $data_current = fetch_lr_data($conn, $user_id, $tanggal_mulai, $tanggal_akhir);

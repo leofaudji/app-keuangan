@@ -268,6 +268,7 @@ try {
             $stmt_save_path->bind_param("s", $db_path);
             $stmt_save_path->execute();
             $stmt_save_path->close();
+            $_POST['letterhead_image'] = $db_path; // Update POST data
         }
 
         // Handle file upload for signature
@@ -278,7 +279,7 @@ try {
 
             // Validation
             if ($file['size'] > 1 * 1024 * 1024) throw new Exception("Ukuran file tanda tangan terlalu besar. Maksimal 1MB.");
-            if ($file['type'] !== 'image/png') throw new Exception("Tipe file tidak diizinkan. Gunakan file PNG dengan latar belakang transparan.");
+            if (mime_content_type($file['tmp_name']) !== 'image/png') throw new Exception("Tipe file tidak diizinkan. Gunakan file PNG dengan latar belakang transparan.");
 
             // Delete old signature if exists
             $stmt_old = $conn->prepare("SELECT setting_value FROM settings WHERE setting_key = 'signature_image'");
@@ -301,6 +302,7 @@ try {
             $stmt_save_path->bind_param("s", $db_path);
             $stmt_save_path->execute();
             $stmt_save_path->close();
+            $_POST['signature_image'] = $db_path; // Update POST data
         }
 
         // Handle file upload for stamp
@@ -311,7 +313,7 @@ try {
 
             // Validation
             if ($file['size'] > 1 * 1024 * 1024) throw new Exception("Ukuran file stempel terlalu besar. Maksimal 1MB.");
-            if ($file['type'] !== 'image/png') throw new Exception("Tipe file tidak diizinkan. Gunakan file PNG dengan latar belakang transparan.");
+            if (mime_content_type($file['tmp_name']) !== 'image/png') throw new Exception("Tipe file tidak diizinkan. Gunakan file PNG dengan latar belakang transparan.");
 
             // Delete old stamp if exists
             $stmt_old = $conn->prepare("SELECT setting_value FROM settings WHERE setting_key = 'stamp_image'");
@@ -333,6 +335,7 @@ try {
             $stmt_save_path->bind_param("s", $db_path);
             $stmt_save_path->execute();
             $stmt_save_path->close();
+            $_POST['stamp_image'] = $db_path; // Update POST data
         }
 
         $conn->commit();

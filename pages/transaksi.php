@@ -139,8 +139,8 @@ if (!$is_spa_request) {
             </div>
 
             <div class="mb-3">
-                <label for="keterangan" class="form-label">Keterangan</label>
-                <textarea class="form-control" id="keterangan" name="keterangan" rows="2" placeholder="Detail transaksi..."></textarea>
+                <label for="keterangan" class="form-label">Keterangan (bisa lebih dari 1 baris)</label>
+                <textarea class="form-control" id="keterangan" name="keterangan" rows="3" required></textarea>
             </div>
         </form>
       </div>

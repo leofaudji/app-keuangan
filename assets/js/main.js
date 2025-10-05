@@ -791,7 +791,7 @@ function initTransaksiPage() {
                             <td>${new Date(tx.tanggal).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</td>
                             <td>${akunUtama}</td>
                             <td><small class="text-muted">${tx.nomor_referensi || '-'}</small></td>
-                            <td>${tx.keterangan}</td>
+                            <td>${tx.keterangan.replace(/\n/g, '<br>')}</td>
                             <td class="text-end">${jumlahDisplay}</td>
                             <td><span data-bs-toggle="tooltip" data-bs-placement="top" title="${auditInfo}">${auditIcon}</span></td>
                             <td><small>${akunKas}</small></td>
@@ -875,6 +875,25 @@ function initTransaksiPage() {
         });
     }
 
+    // Menambahkan fungsionalitas 'Enter' pada textarea keterangan untuk menyimpan
+    const keteranganTextarea = document.getElementById('keterangan');
+    if (keteranganTextarea) {
+        keteranganTextarea.addEventListener('keydown', (e) => {
+            // Jika 'Enter' ditekan tanpa 'Shift', tampilkan konfirmasi
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Mencegah membuat baris baru
+                if (confirm('Simpan transaksi?')) {
+                    const saveBtn = document.getElementById('save-transaksi-btn');
+                    if (saveBtn) saveBtn.click();
+                } else {
+                    // Jika tidak, fokus kembali ke field jumlah
+                    const jumlahInput = document.getElementById('jumlah');
+                    if (jumlahInput) jumlahInput.focus();
+                }
+            }
+            // Jika 'Shift + Enter' ditekan, akan tetap membuat baris baru (perilaku default)
+        });
+    }
 
     saveBtn.addEventListener('click', async () => {
         if (!form.checkValidity()) {
@@ -1034,6 +1053,12 @@ function initTransaksiPage() {
                 if (settings.default_cash_out) document.getElementById('kas_account_id_transfer').value = settings.default_cash_out;
             });
         }
+    });
+
+    // Fokus ke field jumlah saat modal selesai ditampilkan
+    modalEl.addEventListener('shown.bs.modal', () => {
+        const jumlahInput = document.getElementById('jumlah');
+        if (jumlahInput) jumlahInput.focus();
     });
 
     let debounceTimer;
@@ -4378,6 +4403,21 @@ function initSettingsPage() {
                                 <div class="col-md-6 mb-3">
                                     <label for="app_city" class="form-label">Kota Laporan</label>
                                     <input type="text" class="form-control" id="app_city" name="app_city" value="${settings.app_city || ''}" placeholder="cth: Jakarta">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="stamp_image" class="form-label">Gambar Stempel (PNG Transparan)</label>
+                                    <input class="form-control" type="file" id="stamp_image" name="stamp_image" accept="image/png">
+                                    ${settings.stamp_image_exists ? `<div class="form-text">Stempel saat ini: <a href="${basePath}/${settings.stamp_image}" target="_blank">Lihat</a></div>` : ''}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="signature_image" class="form-label">Gambar Tanda Tangan (PNG Transparan)</label>
+                                    <input class="form-control" type="file" id="signature_image" name="signature_image" accept="image/png">
+                                    ${settings.signature_image_exists ? `<div class="form-text">Tanda tangan saat ini: <a href="${basePath}/${settings.signature_image}" target="_blank">Lihat</a></div>` : ''}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="letterhead_image" class="form-label">Gambar Kop Surat (PNG/JPG)</label>
+                                    <input class="form-control" type="file" id="letterhead_image" name="letterhead_image" accept="image/png, image/jpeg">
+                                    ${settings.letterhead_image_exists ? `<div class="form-text">Kop surat saat ini: <a href="${basePath}/${settings.letterhead_image}" target="_blank">Lihat</a></div>` : ''}
                                 </div>
                             </div>
                         </div>

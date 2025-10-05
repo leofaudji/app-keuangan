@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/ReportBuilderInterface.php';
+require_once PROJECT_ROOT . '/includes/Repositories/LaporanRepository.php';
 
 class LabaRugiReportBuilder implements ReportBuilderInterface
 {
@@ -36,62 +37,15 @@ class LabaRugiReportBuilder implements ReportBuilderInterface
         $this->pdf->AddPage($page_orientation);
 
         // fetchData sekarang akan menangani pengambilan data utama dan pembanding
-        $data = $this->fetchData($user_id, $start, $end, $is_comparison, $start2, $end2);
-        $this->render($data);
-    }
-
-    private function fetchPeriodData(int $user_id, string $tanggal_mulai, string $tanggal_akhir): array
-    {
-        $stmt = $this->conn->prepare("
-            SELECT 
-                a.id, a.nama_akun, a.tipe_akun,
-                COALESCE(SUM(
-                    CASE
-                        WHEN a.tipe_akun = 'Pendapatan' THEN gl.kredit - gl.debit
-                        WHEN a.tipe_akun = 'Beban' THEN gl.debit - gl.kredit
-                        ELSE 0
-                    END
-                ), 0) as total
-            FROM accounts a
-            LEFT JOIN general_ledger gl ON a.id = gl.account_id AND gl.user_id = a.user_id AND gl.tanggal BETWEEN ? AND ?
-            WHERE a.user_id = ? AND a.tipe_akun IN ('Pendapatan', 'Beban')
-            GROUP BY a.id, a.nama_akun, a.tipe_akun
-            ORDER BY a.kode_akun ASC
-        ");
-        $stmt->bind_param('ssi', $tanggal_mulai, $tanggal_akhir, $user_id);
-        $stmt->execute();
-        $accounts = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-    
-        $pendapatan = [];
-        $beban = [];
-        foreach ($accounts as &$acc) {
-            if ($acc['tipe_akun'] === 'Pendapatan') $pendapatan[] = $acc;
-            else $beban[] = $acc;
-        }
-    
-        $total_pendapatan = array_sum(array_column($pendapatan, 'total'));
-        $total_beban = array_sum(array_column($beban, 'total'));
-    
-        return [
-            'pendapatan' => $pendapatan,
-            'beban' => $beban,
-            'summary' => [
-                'total_pendapatan' => $total_pendapatan,
-                'total_beban' => $total_beban,
-                'laba_bersih' => $total_pendapatan - $total_beban
-            ]
-        ];
-    }
-
-    private function fetchData(int $user_id, string $start, string $end, bool $is_comparison, ?string $start2, ?string $end2): array
-    {
-        $current_data = $this->fetchPeriodData($user_id, $start, $end);
+        $repo = new LaporanRepository($this->conn);
+        $current_data = $repo->getLabaRugiData($user_id, $start, $end);
         $previous_data = null;
         if ($is_comparison && $start2 && $end2) {
-            $previous_data = $this->fetchPeriodData($user_id, $start2, $end2);
+            $previous_data = $repo->getLabaRugiData($user_id, $start2, $end2);
         }
-        return ['current' => $current_data, 'previous' => $previous_data];
+        $data = ['current' => $current_data, 'previous' => $previous_data];
+
+        $this->render($data);
     }
 
     private function render(array $data): void

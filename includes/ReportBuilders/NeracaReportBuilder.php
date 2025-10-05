@@ -14,48 +14,6 @@ class NeracaReportBuilder implements ReportBuilderInterface
         $this->params = $params;
     }
 
-
-    private function fetchData(int $user_id, string $per_tanggal): array
-    {
-        // Logika disalin dari api/laporan_neraca_handler.php yang sudah direfaktor
-        $stmt = $this->conn->prepare("
-            SELECT
-                a.id, a.parent_id, a.kode_akun, a.nama_akun, a.tipe_akun, a.saldo_normal, a.saldo_awal,
-                COALESCE(SUM(
-                    CASE
-                        WHEN a.saldo_normal = 'Debit' THEN gl.debit - gl.kredit
-                        ELSE gl.kredit - gl.debit
-                    END
-                ), 0) as mutasi
-            FROM accounts a
-            LEFT JOIN general_ledger gl ON a.id = gl.account_id AND gl.user_id = a.user_id AND gl.tanggal <= ?
-            WHERE a.user_id = ?
-            GROUP BY a.id
-            ORDER BY a.kode_akun ASC
-        ");
-        $stmt->bind_param('si', $per_tanggal, $user_id);
-        $stmt->execute();
-        $accounts_result = $stmt->get_result();
-        $accounts = [];
-        while ($row = $accounts_result->fetch_assoc()) {
-            $row['saldo_akhir'] = (float)$row['saldo_awal'] + (float)$row['mutasi'];
-            $accounts[] = $row;
-        }
-        $stmt->close();
-
-        $total_pendapatan = 0;
-        $total_beban = 0;
-        foreach ($accounts as $acc) {
-            if ($acc['tipe_akun'] === 'Pendapatan') $total_pendapatan += $acc['saldo_akhir'];
-            elseif ($acc['tipe_akun'] === 'Beban') $total_beban += $acc['saldo_akhir'];
-        }
-        $laba_rugi_berjalan = $total_pendapatan - $total_beban;
-
-        $accounts[] = ['id' => 'laba_rugi_virtual', 'parent_id' => null, 'nama_akun' => 'Laba (Rugi) Periode Berjalan', 'tipe_akun' => 'Ekuitas', 'saldo_akhir' => $laba_rugi_berjalan];
-
-        return array_filter($accounts, fn($acc) => in_array($acc['tipe_akun'], ['Aset', 'Liabilitas', 'Ekuitas']));
-    }
-
     private function render(array $data): void
     {
         $asetData = array_filter($data, fn($d) => $d['tipe_akun'] === 'Aset');
@@ -107,8 +65,19 @@ class NeracaReportBuilder implements ReportBuilderInterface
         $this->pdf->report_period = 'Per Tanggal: ' . date('d F Y', strtotime($tanggal));
         $this->pdf->AddPage();
 
-        // Menggunakan fungsi yang sudah ada dari laporan_neraca_handler.php
-        $data = $this->fetchData($user_id, $tanggal);
+        // Gunakan Repository untuk konsistensi data
+        $repo = new LaporanRepository($this->conn);
+        $neraca_accounts = $repo->getNeracaData($user_id, $tanggal);
+
+        // Hitung laba rugi berjalan dari data laba rugi
+        $laba_rugi_data = $repo->getLabaRugiData($user_id, date('Y-01-01', strtotime($tanggal)), $tanggal);
+        $laba_rugi_berjalan = $laba_rugi_data['summary']['laba_bersih'];
+
+        // Tambahkan akun virtual untuk laba rugi berjalan ke dalam data neraca
+        $neraca_accounts[] = ['id' => 'laba_rugi_virtual', 'parent_id' => null, 'nama_akun' => 'Laba (Rugi) Periode Berjalan', 'tipe_akun' => 'Ekuitas', 'saldo_akhir' => $laba_rugi_berjalan];
+
+        $data = $neraca_accounts;
+
         $this->render($data);
         $this->pdf->signature_date = $tanggal;
         $this->pdf->RenderSignatureBlock();

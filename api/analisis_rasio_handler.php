@@ -1,7 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_once PROJECT_ROOT . '/includes/ReportBuilders/AnalisisRasioDataTrait.php';
+require_once PROJECT_ROOT . '/includes/Repositories/LaporanRepository.php';
 
 if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
     http_response_code(401);
@@ -12,17 +12,13 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
 $conn = Database::getInstance()->getConnection();
 $user_id = $_SESSION['user_id'];
 
-class AnalisisRasioHandler {
-    use AnalisisRasioDataTrait;
-}
-
 try {
     $date = $_GET['date'] ?? date('Y-m-d');
     $compare_date = $_GET['compare_date'] ?? null;
 
-    $handler = new AnalisisRasioHandler();
-    $current_data = $handler->getFinancialData($conn, $user_id, $date);
-    $previous_data = $compare_date ? $handler->getFinancialData($conn, $user_id, $compare_date) : null;
+    $repo = new LaporanRepository($conn);
+    $current_data = $repo->getFinancialSummaryData($user_id, $date);
+    $previous_data = $compare_date ? $repo->getFinancialSummaryData($user_id, $compare_date) : null;
 
     // --- Hitung Rasio ---
     function calculateRatios(array $data): array

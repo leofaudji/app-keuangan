@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/ReportBuilderInterface.php';
+require_once PROJECT_ROOT . '/includes/Repositories/LaporanRepository.php';
 
 class AnggaranReportBuilder implements ReportBuilderInterface
 {
@@ -31,67 +32,9 @@ class AnggaranReportBuilder implements ReportBuilderInterface
         $this->pdf->report_period = $period_text;
         $this->pdf->AddPage('P'); // Ubah ke Portrait
 
-        $result = $this->fetchData($user_id, $tahun, $bulan, $compare);
+        $repo = new LaporanRepository($this->conn);
+        $result = $repo->getAnggaranData($user_id, $tahun, $bulan, $compare);
         $this->render($result);
-    }
-
-    private function fetchData(int $user_id, int $tahun, int $bulan, bool $compare): array
-    {
-        // Logika query disalin dan disesuaikan dari api/anggaran_handler.php
-        $tahun_lalu = $tahun - 1;
-        $stmt = $this->conn->prepare("
-            SELECT 
-                a.id as account_id,
-                a.nama_akun,
-                COALESCE(ang_current.jumlah_anggaran / 12, 0) as anggaran_bulanan,
-                COALESCE(realisasi_current.total_beban, 0) as realisasi_belanja,
-                COALESCE(realisasi_prev.total_beban, 0) as realisasi_belanja_lalu
-            FROM accounts a
-            LEFT JOIN (
-                SELECT account_id, jumlah_anggaran 
-                FROM anggaran 
-                WHERE user_id = ? AND periode_tahun = ?
-            ) ang_current ON a.id = ang_current.account_id
-            LEFT JOIN (
-                SELECT account_id, SUM(debit - kredit) as total_beban
-                FROM general_ledger
-                WHERE user_id = ? AND YEAR(tanggal) = ? AND MONTH(tanggal) = ?
-                GROUP BY account_id
-            ) realisasi_current ON a.id = realisasi_current.account_id
-            LEFT JOIN (
-                SELECT account_id, SUM(debit - kredit) as total_beban
-                FROM general_ledger
-                WHERE user_id = ? AND YEAR(tanggal) = ? AND MONTH(tanggal) = ?
-                GROUP BY account_id
-            ) realisasi_prev ON a.id = realisasi_prev.account_id
-            WHERE a.user_id = ? AND a.tipe_akun = 'Beban'
-            ORDER BY a.kode_akun
-        ");
-        $stmt->bind_param('iiiiiiiii', $user_id, $tahun, $user_id, $tahun, $bulan, $user_id, $tahun_lalu, $bulan, $user_id);
-        $stmt->execute();
-        $data = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-
-        $total_anggaran = 0;
-        $total_realisasi = 0;
-        $total_realisasi_lalu = 0;
-
-        foreach ($data as &$row) {
-            $row['sisa_anggaran'] = (float)$row['anggaran_bulanan'] - (float)$row['realisasi_belanja'];
-            $total_anggaran += (float)$row['anggaran_bulanan'];
-            $total_realisasi += (float)$row['realisasi_belanja'];
-            $total_realisasi_lalu += (float)$row['realisasi_belanja_lalu'];
-        }
-
-        $summary = [
-            'total_anggaran' => $total_anggaran,
-            'total_realisasi' => $total_realisasi,
-            'total_sisa' => $total_anggaran - $total_realisasi,
-            'total_realisasi_lalu' => $total_realisasi_lalu,
-            'compare_mode' => $compare
-        ];
-
-        return ['data' => $data, 'summary' => $summary];
     }
 
     private function render(array $result): void

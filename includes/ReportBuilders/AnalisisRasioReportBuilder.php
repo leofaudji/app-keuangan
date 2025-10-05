@@ -1,10 +1,8 @@
 <?php
 require_once __DIR__ . '/ReportBuilderInterface.php';
-require_once __DIR__ . '/AnalisisRasioDataTrait.php';
 
 class AnalisisRasioReportBuilder implements ReportBuilderInterface
 {
-    use AnalisisRasioDataTrait;
     private $pdf;
     private $conn;
     private $params;
@@ -72,8 +70,11 @@ class AnalisisRasioReportBuilder implements ReportBuilderInterface
 
     private function fetchData(string $date, ?string $compare_date): array
     {
-        $current_data = $this->getFinancialData($this->conn, $this->params['user_id'], $date);
-        $previous_data = $compare_date ? $this->getFinancialData($this->conn, $this->params['user_id'], $compare_date) : null;
+        // Gunakan Repository untuk konsistensi data
+        $repo = new LaporanRepository($this->conn);
+
+        $current_data = $repo->getFinancialSummaryData($this->params['user_id'], $date);
+        $previous_data = $compare_date ? $repo->getFinancialSummaryData($this->params['user_id'], $compare_date) : null;
 
         // Fungsi kalkulasi rasio dipindahkan ke sini agar tidak bergantung pada file API
         $calculateRatios = function (array $data): array {

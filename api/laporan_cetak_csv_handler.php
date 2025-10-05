@@ -16,10 +16,9 @@ require_once PROJECT_ROOT . '/includes/ReportBuilders/NeracaReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/LabaRugiReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/ArusKasReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/LaporanHarianReportBuilder.php';
-require_once PROJECT_ROOT . '/includes/ReportBuilders/BukuBesarReportBuilder.php';
-require_once PROJECT_ROOT . '/includes/ReportBuilders/BukuBesarDataTrait.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/DaftarJurnalReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/LaporanLabaDitahanReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/Repositories/LaporanRepository.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/PertumbuhanLabaReportBuilder.php';
 
 $conn = Database::getInstance()->getConnection();
@@ -43,13 +42,8 @@ try {
     switch ($report_type) {
         case 'neraca':
             $tanggal = $_GET['tanggal'] ?? date('Y-m-d');
-            $builder = new NeracaReportBuilder(new PDF(), $conn, ['user_id' => $user_id, 'tanggal' => $tanggal]);
-            
-            // Gunakan reflection untuk mengakses metode private fetchData
-            $reflection = new ReflectionClass($builder);
-            $method = $reflection->getMethod('fetchData');
-            $method->setAccessible(true);
-            $data = $method->invoke($builder, $user_id, $tanggal);
+            $repo = new LaporanRepository($conn);
+            $data = $repo->getNeracaData($user_id, $tanggal);
 
             fputcsv($output, ['Laporan Posisi Keuangan (Neraca)']);
             fputcsv($output, ['Per Tanggal:', date('d F Y', strtotime($tanggal))]);
@@ -91,13 +85,8 @@ try {
         case 'laba-rugi':
             $start = $_GET['start'] ?? date('Y-m-01');
             $end = $_GET['end'] ?? date('Y-m-t');
-            $builder = new LabaRugiReportBuilder(new PDF(), $conn, ['user_id' => $user_id, 'start' => $start, 'end' => $end]);
-
-            $reflection = new ReflectionClass($builder);
-            $method = $reflection->getMethod('fetchData');
-            $method->setAccessible(true);
-            $data = $method->invoke($builder, $user_id, $start, $end);
-
+            $repo = new LaporanRepository($conn);
+            $data = $repo->getLabaRugiData($user_id, $start, $end);
             fputcsv($output, ['Laporan Laba Rugi']);
             fputcsv($output, ['Periode:', date('d M Y', strtotime($start)) . ' - ' . date('d M Y', strtotime($end))]);
             fputcsv($output, []);
@@ -121,12 +110,16 @@ try {
         case 'arus-kas':
             $start = $_GET['start'] ?? date('Y-m-01');
             $end = $_GET['end'] ?? date('Y-m-t');
-            $builder = new ArusKasReportBuilder(new PDF(), $conn, ['user_id' => $user_id, 'start' => $start, 'end' => $end]);
-
+            
+            $repo = new LaporanRepository($conn);
+            $raw_data = $repo->getArusKasData($user_id, $start, $end);
+            
+            // Proses data mentah menjadi format yang siap dirender, sama seperti di ArusKasReportBuilder
+            $builder = new ArusKasReportBuilder(new PDF(), $conn, []);
             $reflection = new ReflectionClass($builder);
-            $method = $reflection->getMethod('fetchData');
+            $method = $reflection->getMethod('processData');
             $method->setAccessible(true);
-            $data = $method->invoke($builder, $user_id, $start, $end);
+            $data = $method->invoke($builder, $raw_data);
 
             fputcsv($output, ['Laporan Arus Kas']);
             fputcsv($output, ['Periode:', date('d M Y', strtotime($start)) . ' - ' . date('d M Y', strtotime($end))]);
@@ -134,39 +127,41 @@ try {
 
             fputcsv($output, ['Kategori', 'Keterangan', 'Jumlah']);
             fputcsv($output, ['Arus Kas dari Aktivitas Operasi']);
-            foreach ($data['arus_kas_operasi']['details'] as $keterangan => $jumlah) {
-                fputcsv($output, ['', $keterangan, $jumlah]);
+            if (!empty($data['arus_kas_operasi']['details'])) {
+                foreach ($data['arus_kas_operasi']['details'] as $keterangan => $jumlah) {
+                    fputcsv($output, ['', $keterangan, $jumlah]);
+                }
             }
             fputcsv($output, ['Total Arus Kas Operasi', '', $data['arus_kas_operasi']['total']]);
             fputcsv($output, []);
 
             fputcsv($output, ['Arus Kas dari Aktivitas Investasi']);
-            foreach ($data['arus_kas_investasi']['details'] as $keterangan => $jumlah) {
-                fputcsv($output, ['', $keterangan, $jumlah]);
+            if (!empty($data['arus_kas_investasi']['details'])) {
+                foreach ($data['arus_kas_investasi']['details'] as $keterangan => $jumlah) {
+                    fputcsv($output, ['', $keterangan, $jumlah]);
+                }
             }
             fputcsv($output, ['Total Arus Kas Investasi', '', $data['arus_kas_investasi']['total']]);
             fputcsv($output, []);
 
             fputcsv($output, ['Arus Kas dari Aktivitas Pendanaan']);
-            foreach ($data['arus_kas_pendanaan']['details'] as $keterangan => $jumlah) {
-                fputcsv($output, ['', $keterangan, $jumlah]);
+            if (!empty($data['arus_kas_pendanaan']['details'])) {
+                foreach ($data['arus_kas_pendanaan']['details'] as $keterangan => $jumlah) {
+                    fputcsv($output, ['', $keterangan, $jumlah]);
+                }
             }
             fputcsv($output, ['Total Arus Kas Pendanaan', '', $data['arus_kas_pendanaan']['total']]);
             fputcsv($output, []);
 
             fputcsv($output, ['Kenaikan (Penurunan) Bersih Kas', '', $data['kenaikan_penurunan_kas']]);
-            fputcsv($output, ['Saldo Kas pada Awal Periode', '', $data['saldo_kas_awal']]);
-            fputcsv($output, ['Saldo Kas pada Akhir Periode', '', $data['saldo_kas_awal'] + $data['kenaikan_penurunan_kas']]);
+            fputcsv($output, ['Saldo Kas pada Awal Periode', '', $raw_data['saldo_kas_awal']]);
+            fputcsv($output, ['Saldo Kas pada Akhir Periode', '', $data['saldo_kas_akhir_terhitung']]);
             break;
 
         case 'laporan-harian':
             $tanggal = $_GET['tanggal'] ?? date('Y-m-d');
-            $builder = new LaporanHarianReportBuilder(new PDF(), $conn, ['user_id' => $user_id, 'tanggal' => $tanggal]);
-
-            $reflection = new ReflectionClass($builder);
-            $method = $reflection->getMethod('fetchData');
-            $method->setAccessible(true);
-            $data = $method->invoke($builder, $user_id, $tanggal);
+            $repo = new LaporanRepository($conn);
+            $data = $repo->getLaporanHarianData($user_id, $tanggal);
 
             fputcsv($output, ['Laporan Transaksi Harian']);
             fputcsv($output, ['Tanggal:', date('d F Y', strtotime($tanggal))]);
@@ -193,14 +188,12 @@ try {
             break;
 
         case 'buku-besar': {
-            // Buat kelas anonim untuk menggunakan trait
-            $dataFetcher = new class { use BukuBesarDataTrait; };
-
             $account_id = (int)($_GET['account_id'] ?? 0);
             $start_date = $_GET['start_date'] ?? date('Y-m-01');
             $end_date = $_GET['end_date'] ?? date('Y-m-t');
 
-            $data = $dataFetcher->fetchBukuBesarData($conn, $user_id, $account_id, $start_date, $end_date);
+            $repo = new LaporanRepository($conn);
+            $data = $repo->getBukuBesarData($user_id, $account_id, $start_date, $end_date);
 
             fputcsv($output, ['Laporan Buku Besar']);
             fputcsv($output, ['Akun:', $data['account_info']['kode_akun'] . ' - ' . $data['account_info']['nama_akun']]);
@@ -237,12 +230,8 @@ try {
             $start_date = $_GET['start_date'] ?? '';
             $end_date = $_GET['end_date'] ?? '';
 
-            $builder = new DaftarJurnalReportBuilder(new PDF(), $conn, []);
-            $reflection = new ReflectionClass($builder);
-            $method = $reflection->getMethod('fetchData');
-            $method->setAccessible(true);
-            $data = $method->invoke($builder, $user_id, $search, $start_date, $end_date);
-
+            $repo = new LaporanRepository($conn);
+            $data = $repo->getDaftarJurnalData($user_id, $search, $start_date, $end_date);
             fputcsv($output, ['Daftar Entri Jurnal']);
             if (!empty($start_date) && !empty($end_date)) {
                 fputcsv($output, ['Periode:', date('d M Y', strtotime($start_date)) . ' s/d ' . date('d M Y', strtotime($end_date))]);
@@ -260,13 +249,8 @@ try {
             $start_date = $_GET['start_date'] ?? date('Y-01-01');
             $end_date = $_GET['end_date'] ?? date('Y-m-d');
 
-            $builder = new LaporanLabaDitahanReportBuilder(new PDF(), $conn, ['user_id' => $user_id, 'start_date' => $start_date, 'end_date' => $end_date]);
-            
-            $reflection = new ReflectionClass($builder);
-            $method = $reflection->getMethod('fetchData');
-            $method->setAccessible(true);
-            $data = $method->invoke($builder, $user_id, $start_date, $end_date);
-
+            $repo = new LaporanRepository($conn);
+            $data = $repo->getLabaDitahanData($user_id, $start_date, $end_date);
             fputcsv($output, ['Laporan Perubahan Laba Ditahan']);
             fputcsv($output, ['Periode:', date('d M Y', strtotime($start_date)) . ' - ' . date('d M Y', strtotime($end_date))]);
             fputcsv($output, []);
@@ -299,38 +283,10 @@ try {
             $tahun_lalu = $tahun - 1;
             $namaBulan = DateTime::createFromFormat('!m', $bulan)->format('F');
 
-            // Logika query disalin dari api/anggaran_handler.php yang sudah mendukung perbandingan
-            $stmt = $conn->prepare("
-                SELECT 
-                    a.nama_akun,
-                    COALESCE(ang_current.jumlah_anggaran / 12, 0) as anggaran_bulanan,
-                    COALESCE(realisasi_current.total_beban, 0) as realisasi_belanja,
-                    COALESCE(realisasi_prev.total_beban, 0) as realisasi_belanja_lalu
-                FROM accounts a
-                LEFT JOIN (
-                    SELECT account_id, jumlah_anggaran 
-                    FROM anggaran 
-                    WHERE user_id = ? AND periode_tahun = ?
-                ) ang_current ON a.id = ang_current.account_id
-                LEFT JOIN (
-                    SELECT account_id, SUM(debit - kredit) as total_beban
-                    FROM general_ledger
-                    WHERE user_id = ? AND YEAR(tanggal) = ? AND MONTH(tanggal) = ?
-                    GROUP BY account_id
-                ) realisasi_current ON a.id = realisasi_current.account_id
-                LEFT JOIN (
-                    SELECT account_id, SUM(debit - kredit) as total_beban
-                    FROM general_ledger
-                    WHERE user_id = ? AND YEAR(tanggal) = ? AND MONTH(tanggal) = ?
-                    GROUP BY account_id
-                ) realisasi_prev ON a.id = realisasi_prev.account_id
-                WHERE a.user_id = ? AND a.tipe_akun = 'Beban'
-                ORDER BY a.kode_akun
-            ");
-            $stmt->bind_param('iiiiiiiii', $user_id, $tahun, $user_id, $tahun, $bulan, $user_id, $tahun_lalu, $bulan, $user_id);
-            $stmt->execute();
-            $data = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmt->close();
+            // Gunakan Repository untuk konsistensi data
+            $repo = new LaporanRepository($conn);
+            $result = $repo->getAnggaranData($user_id, $tahun, $bulan, $compare);
+            $data = $result['data'];
 
             fputcsv($output, ['Laporan Anggaran vs Realisasi']);
             fputcsv($output, ['Periode:', $namaBulan . ' ' . $tahun]);
@@ -346,15 +302,14 @@ try {
             }
 
             foreach ($data as $row) {
-                $sisa_anggaran = (float)$row['anggaran_bulanan'] - (float)$row['realisasi_belanja'];
-                $persentase = ((float)$row['anggaran_bulanan'] > 0) ? (((float)$row['realisasi_belanja'] / (float)$row['anggaran_bulanan']) * 100) : 0;
+                $persentase = $row['persentase'];
                 if ($compare) {
                     fputcsv($output, [
                         $row['nama_akun'], $row['anggaran_bulanan'], $row['realisasi_belanja'], $row['realisasi_belanja_lalu'], number_format($persentase, 2) . '%'
                     ]);
                 } else {
                     fputcsv($output, [
-                        $row['nama_akun'], $row['anggaran_bulanan'], $row['realisasi_belanja'], $sisa_anggaran, number_format($persentase, 2) . '%'
+                        $row['nama_akun'], $row['anggaran_bulanan'], $row['realisasi_belanja'], $row['sisa_anggaran'], number_format($persentase, 2) . '%'
                     ]);
                 }
             }
@@ -367,12 +322,8 @@ try {
             $view_mode = $_GET['view_mode'] ?? 'monthly';
             $compare = isset($_GET['compare']) && $_GET['compare'] === 'true';
 
-            $builder = new PertumbuhanLabaReportBuilder(new PDF(), $conn, $_GET + ['user_id' => $user_id]);
-            $reflection = new ReflectionClass($builder);
-            $method = $reflection->getMethod('fetchData');
-            $method->setAccessible(true);
-            $data = $method->invoke($builder);
-
+            $repo = new LaporanRepository($conn);
+            $data = $repo->getPertumbuhanLabaData($user_id, $tahun, $view_mode, $compare);
             fputcsv($output, ['Laporan Pertumbuhan Laba']);
             fputcsv($output, ['Tahun:', $tahun, 'Tampilan:', ucfirst($view_mode)]);
             fputcsv($output, []);
