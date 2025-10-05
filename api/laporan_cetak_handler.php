@@ -19,6 +19,7 @@ require_once PROJECT_ROOT . '/includes/ReportBuilders/AnggaranReportBuilder.php'
 require_once PROJECT_ROOT . '/includes/ReportBuilders/PertumbuhanLabaReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/AnalisisRasioReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/BukuPanduanReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/ReportBuilders/RekonsiliasiReportBuilder.php';
 
 $conn = Database::getInstance()->getConnection();
 
@@ -55,6 +56,7 @@ $builder_map = [
     'laporan-pertumbuhan-laba' => PertumbuhanLabaReportBuilder::class,
     'analisis-rasio' => AnalisisRasioReportBuilder::class,
     'buku-panduan' => BukuPanduanReportBuilder::class,
+    'rekonsiliasi' => RekonsiliasiReportBuilder::class,
 ];
 
 try {

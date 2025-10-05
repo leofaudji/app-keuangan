@@ -59,25 +59,19 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
             <a class="nav-link" href="<?= base_url('/buku-panduan') ?>"><i class="bi bi-question-circle-fill"></i> Buku Panduan</a>
         </li>
 
-        <!-- Entri Data -->
-        <li class="sidebar-header">Entri Data</li>
+        <!-- Kas & Bank -->
+        <li class="sidebar-header">Kas & Bank</li>
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/transaksi') ?>"><i class="bi bi-arrow-down-up"></i> Transaksi</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/entri-jurnal') ?>"><i class="bi bi-journal-plus"></i> Entri Jurnal</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/transaksi-berulang') ?>"><i class="bi bi-arrow-repeat"></i> Transaksi Berulang</a>
+            <a class="nav-link" href="<?= base_url('/rekonsiliasi-bank') ?>"><i class="bi bi-bank2"></i> Rekonsiliasi Bank</a>
         </li>
 
-        <!-- Laporan & Analisis -->
-        <li class="sidebar-header">Laporan & Analisis</li>
+        <!-- Akuntansi -->
+        <li class="sidebar-header">Akuntansi</li>
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/laporan') ?>"><i class="bi bi-bar-chart-line-fill"></i> Laporan Keuangan</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/laporan-harian') ?>"><i class="bi bi-calendar-day"></i> Laporan Harian</a>
+            <a class="nav-link" href="<?= base_url('/entri-jurnal') ?>"><i class="bi bi-journal-plus"></i> Entri Jurnal</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/daftar-jurnal') ?>"><i class="bi bi-list-ol"></i> Daftar Jurnal</a>
@@ -86,10 +80,22 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
             <a class="nav-link" href="<?= base_url('/buku-besar') ?>"><i class="bi bi-book"></i> Buku Besar</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/laporan-pertumbuhan-laba') ?>"><i class="bi bi-graph-up-arrow"></i> Pertumbuhan Laba</a>
+            <a class="nav-link" href="<?= base_url('/coa') ?>"><i class="bi bi-journal-bookmark-fill"></i> Bagan Akun (COA)</a>
+        </li>
+
+        <!-- Laporan & Analisis -->
+        <li class="sidebar-header">Laporan & Analisis</li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/laporan') ?>"><i class="bi bi-bar-chart-line-fill"></i> Laporan Keuangan</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/laporan-laba-ditahan') ?>"><i class="bi bi-graph-up"></i> Laporan Laba Ditahan</a>
+            <a class="nav-link" href="<?= base_url('/laporan-laba-ditahan') ?>"><i class="bi bi-graph-up"></i> Perubahan Laba</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/laporan-harian') ?>"><i class="bi bi-calendar-day"></i> Laporan Harian</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/laporan-pertumbuhan-laba') ?>"><i class="bi bi-graph-up-arrow"></i> Pertumbuhan Laba</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/analisis-rasio') ?>"><i class="bi bi-pie-chart-fill"></i> Analisis Rasio</a>
@@ -98,10 +104,10 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
             <a class="nav-link" href="<?= base_url('/anggaran') ?>"><i class="bi bi-bullseye"></i> Anggaran</a>
         </li>
 
-        <!-- Master Data -->
-        <li class="sidebar-header">Master Data</li>
+        <!-- Pengaturan & Master -->
+        <li class="sidebar-header">Pengaturan & Master</li>
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/coa') ?>"><i class="bi bi-journal-bookmark-fill"></i> Bagan Akun (COA)</a>
+            <a class="nav-link" href="<?= base_url('/transaksi-berulang') ?>"><i class="bi bi-arrow-repeat"></i> Transaksi Berulang</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/saldo-awal-neraca') ?>"><i class="bi bi-journal-check"></i> Saldo Awal Neraca</a>
@@ -123,7 +129,7 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
             <a class="nav-link" href="<?= base_url('/tutup-buku') ?>"><i class="bi bi-archive-fill"></i> Tutup Buku</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('/settings') ?>"><i class="bi bi-gear-fill"></i> Pengaturan Aplikasi</a>
+            <a class="nav-link" href="<?= base_url('/settings') ?>"><i class="bi bi-gear-fill"></i> Pengaturan</a>
         </li>
         <?php endif; ?>
     </ul>

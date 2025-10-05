@@ -11,6 +11,9 @@ if (!$is_spa_request) {
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="bi bi-speedometer2"></i> Dashboard</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#customizeDashboardModal">
+            <i class="bi bi-grid-3x3-gap-fill"></i> Kustomisasi
+        </button>
         <div class="d-flex align-items-center">
             <div class="me-2">
                 <label for="dashboard-bulan-filter" class="form-label visually-hidden">Bulan</label>
@@ -73,6 +76,28 @@ if (!$is_spa_request) {
 </div>
 
 <!-- Konten dashboard keuangan akan dirender di sini oleh JavaScript -->
+
+<!-- Modal Kustomisasi Dashboard -->
+<div class="modal fade" id="customizeDashboardModal" tabindex="-1" aria-labelledby="customizeDashboardModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="customizeDashboardModalLabel">Kustomisasi Widget Dashboard</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Pilih widget yang ingin Anda tampilkan di halaman Dashboard.</p>
+        <form id="dashboard-widgets-form">
+            <!-- Checkbox akan diisi oleh JavaScript -->
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+        <button type="button" class="btn btn-primary" id="save-dashboard-widgets-btn">Simpan Perubahan</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <?php
 // Hanya muat footer jika ini bukan permintaan SPA

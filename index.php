@@ -36,6 +36,8 @@ $router->get('/transaksi', 'pages/transaksi.php', ['auth']);
 $router->get('/daftar-jurnal', 'pages/daftar_jurnal.php', ['auth']);
 $router->get('/konsinyasi', 'pages/konsinyasi.php', ['auth']);
 $router->get('/transaksi-berulang', 'pages/transaksi_berulang.php', ['auth']);
+$router->get('/rekonsiliasi-bank', 'pages/rekonsiliasi_bank.php', ['auth']);
+$router->get('/histori-rekonsiliasi', 'pages/histori_rekonsiliasi.php', ['auth']);
 $router->get('/entri-jurnal', 'pages/entri_jurnal.php', ['auth']);
 $router->get('/coa', 'pages/coa.php', ['auth']);
 $router->get('/saldo-awal-neraca', 'pages/saldo_awal_neraca.php', ['auth']);
@@ -83,6 +85,12 @@ $router->post('/api/konsinyasi', 'api/konsinyasi_handler.php', ['auth']);
 
 $router->get('/api/recurring', 'api/recurring_handler.php', ['auth']);
 $router->post('/api/recurring', 'api/recurring_handler.php', ['auth']);
+
+// API untuk Rekonsiliasi Bank
+$router->get('/api/rekonsiliasi-bank', 'api/rekonsiliasi_bank_handler.php', ['auth']);
+$router->post('/api/rekonsiliasi-bank', 'api/rekonsiliasi_bank_handler.php', ['auth']);
+$router->get('/api/histori-rekonsiliasi', 'api/histori_rekonsiliasi_handler.php', ['auth']);
+$router->post('/api/histori-rekonsiliasi', 'api/histori_rekonsiliasi_handler.php', ['auth']);
 
 $router->get('/api/tutup-buku', 'api/tutup_buku_handler.php', ['auth', 'admin']);
 $router->get('/api/laporan-laba-ditahan', 'api/laporan_laba_ditahan_handler.php', ['auth']);

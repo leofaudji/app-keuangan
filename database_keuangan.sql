@@ -166,6 +166,23 @@ CREATE TABLE `recurring_templates` (
   KEY `next_run_date` (`next_run_date`, `is_active`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Tabel untuk menyimpan header setiap event rekonsiliasi
+CREATE TABLE `reconciliations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `account_id` int(11) NOT NULL,
+  `statement_date` date NOT NULL COMMENT 'Tanggal akhir periode rekonsiliasi',
+  `statement_balance` decimal(15,2) NOT NULL COMMENT 'Saldo akhir dari rekening koran',
+  `cleared_balance` decimal(15,2) NOT NULL COMMENT 'Saldo buku setelah transaksi yang cocok dibersihkan',
+  `difference` decimal(15,2) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `account_id` (`account_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Tabel untuk detail/baris entri jurnal umum
 CREATE TABLE `jurnal_details` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -343,3 +360,12 @@ INSERT INTO `anggaran` (`user_id`, `account_id`, `periode_tahun`, `jumlah_anggar
 -- Data Demo Transaksi Berulang
 INSERT INTO `recurring_templates` (`user_id`, `name`, `frequency_unit`, `frequency_interval`, `start_date`, `next_run_date`, `template_type`, `template_data`) VALUES
 (1, 'Beban Sewa Toko Bulanan', 'month', 1, CONCAT(YEAR(CURDATE()), '-01-25'), CONCAT(YEAR(CURDATE()), '-01-25'), 'jurnal', '{"keterangan": "Pembayaran sewa toko bulanan", "lines": [{"account_id": "605", "debit": 500000, "kredit": 0}, {"account_id": "104", "debit": 0, "kredit": 500000}]}');
+
+ALTER TABLE `general_ledger`
+ADD COLUMN `is_reconciled` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '0=Belum, 1=Sudah direkonsiliasi',
+ADD COLUMN `reconciliation_date` DATE DEFAULT NULL COMMENT 'Tanggal proses rekonsiliasi dilakukan';
+ALTER TABLE `general_ledger` ADD COLUMN `reconciliation_id` INT(11) DEFAULT NULL AFTER `reconciliation_date`;
+ALTER TABLE `general_ledger` ADD KEY `idx_reconciliation_id` (`reconciliation_id`);
+
+-- Tambahkan index untuk mempercepat query
+CREATE INDEX `idx_reconciliation` ON `general_ledger` (`account_id`, `is_reconciled`, `tanggal`);
