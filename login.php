@@ -1,66 +1,78 @@
 <?php
-// Jangan muat session_start() atau bootstrap di sini, karena router akan menanganinya.
-// File ini akan di-require oleh index.php melalui router.
-
-// Cek jika ada pesan error dari proses login sebelumnya
-$error = $_SESSION['login_error'] ?? null;
-unset($_SESSION['login_error']);
+// File ini tidak memerlukan header/footer karena merupakan halaman mandiri
+require_once __DIR__ . '/includes/bootstrap.php';
 ?>
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="id">
 <head>
-    <meta charset="utf-8"> 
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Login - Aplikasi Keuangan</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - <?= get_setting('app_name', 'Aplikasi Keuangan') ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="<?= base_url('/assets/css/style.css') ?>">
     <style>
-        body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background-color: #f0f2f5;
+        /* Override Bootstrap primary color to WhatsApp green only for this page */
+        .bg-primary {
+            background-color: #075E54 !important; /* WhatsApp Dark Green */
         }
-        .login-card {
-            width: 100%;
-            max-width: 400px;
+        .btn-primary {
+            --bs-btn-color: #fff;
+            --bs-btn-bg: #25D366; /* WhatsApp Light Green */
+            --bs-btn-border-color: #25D366;
+            --bs-btn-hover-bg: #1EBE57;
+            --bs-btn-hover-border-color: #1C9A4A;
+            --bs-btn-active-bg: #1C9A4A;
+            --bs-btn-active-border-color: #198741;
         }
     </style>
 </head>
 <body>
-    <div class="card login-card shadow-sm">
-        <div class="card-body p-5">
-            <h3 class="card-title text-center mb-4"><i class="bi bi-wallet-fill"></i> UangKu</h3>
-            <h5 class="card-subtitle mb-4 text-center text-muted">Silakan Login</h5>
-
-            <?php if ($error): ?>
-                <div class="alert alert-danger" role="alert">
-                    <?= htmlspecialchars($error) ?>
+    <div class="container-fluid">
+        <div class="row vh-100">
+            <div class="col-md-6 col-lg-7 d-none d-md-flex align-items-center justify-content-center bg-primary text-white p-5">
+                <div>
+                    <h1 class="display-4 fw-bold"><?= get_setting('app_name', 'Aplikasi Keuangan') ?></h1>
+                    <p class="lead">Solusi pencatatan keuangan yang mudah dan terintegrasi.</p>
                 </div>
-            <?php endif; ?>
-
-            <form id="login-form" action="<?= base_url('/login') ?>" method="POST">
-                <div class="mb-3">
-                    <label for="username" class="form-label">Username</label>
-                    <input type="text" class="form-control" id="username" name="username" required autofocus>
+            </div>
+            <div class="col-md-6 col-lg-5 d-flex align-items-center justify-content-center">
+                <div class="card shadow-lg border-0" style="width: 24rem;">
+                    <div class="card-body p-4 p-lg-5">
+                        <div class="text-center mb-4">
+                            <img src="<?= base_url(get_setting('app_logo', 'assets/img/logo.png')) ?>" alt="Logo" height="50">
+                            <h3 class="mt-3">Selamat Datang</h3>
+                        </div>
+                        <?php if (isset($_SESSION['login_error'])): ?>
+                            <div class="alert alert-danger" role="alert"><?= $_SESSION['login_error']; unset($_SESSION['login_error']); ?></div>
+                        <?php endif; ?>
+                        <?php if (isset($_SESSION['login_success'])): ?>
+                            <div class="alert alert-success" role="alert"><?= $_SESSION['login_success']; unset($_SESSION['login_success']); ?></div>
+                        <?php endif; ?>
+                        <form id="login-form" action="<?= base_url('/login') ?>" method="POST">
+                            <div class="mb-3"><input class="form-control" type="text" name="username" placeholder="Username" required></div>
+                            <div class="mb-3"><input class="form-control" type="password" name="password" placeholder="Password" required></div>
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="remember_me" id="remember_me">
+                                    <label class="form-check-label" for="remember_me"> Ingat Saya </label>
+                                </div>
+                                <a href="<?= base_url('/forgot') ?>">Lupa Password?</a>
+                            </div>
+                            <div class="mb-3"><button id="login-btn" class="btn btn-primary d-block w-100" type="submit">Login</button></div>
+                        </form>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" class="form-control" id="password" name="password" required>
-                </div>
-                <div class="d-grid">
-                    <button type="submit" id="login-button" class="btn btn-primary">Login</button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
-
     <script>
         document.getElementById('login-form').addEventListener('submit', function() {
-            var loginButton = document.getElementById('login-button');
-            loginButton.disabled = true;
-            loginButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Memproses...';
+            const loginBtn = document.getElementById('login-btn');
+            if (loginBtn) {
+                loginBtn.disabled = true;
+                loginBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Logging in...`;
+            }
         });
     </script>
 </body>

@@ -12,13 +12,21 @@ class PDF extends FPDF
     {
         global $housing_name; // Pastikan variabel ini di-pass dari laporan_cetak_handler.php
 
+        $startX = $this->GetX();
+        $startY = $this->GetY();
+        $logoY = $startY;
+        $logoWidth = 30; // Sedikit lebih kecil untuk memberi ruang
+        $logoHeight = 0;
+
         // --- Tambahkan Logo ---
         $logo_path = get_setting('app_logo'); // Ambil path logo dari database
         if ($logo_path) {
             $full_logo_path = PROJECT_ROOT . '/' . $logo_path;
             if (file_exists($full_logo_path)) {
-                // Image(file, x, y, width)
-                $this->Image($full_logo_path, 12, 8, 32);
+                list($imgWidth, $imgHeight) = getimagesize($full_logo_path);
+                $aspectRatio = $imgHeight / $imgWidth;
+                $logoHeight = $logoWidth * $aspectRatio;
+                $this->Image($full_logo_path, $startX, $logoY, $logoWidth, $logoHeight);
             }
         }
 
@@ -27,15 +35,25 @@ class PDF extends FPDF
         $header2 = get_setting('pdf_header_line2', strtoupper($housing_name ?? 'NAMA PERUSAHAAN'));
         $header3 = get_setting('pdf_header_line3', 'Alamat Sekretariat: [Alamat Sekretariat RT Anda]');
 
-        $this->SetY(10); // Atur posisi Y agar teks sejajar
+        // Simpan posisi Y saat ini sebelum menggambar teks
+        $y_before_text = $this->GetY();
+
+        $this->SetY($startY); // Atur posisi Y agar teks sejajar dengan atas logo
         $this->SetFont('Helvetica', 'B', 12);
         $this->Cell(0, 7, $header1, 0, 1, 'C');
         $this->SetFont('Helvetica', 'B', 16);
         $this->Cell(0, 7, $header2, 0, 1, 'C');
         $this->SetFont('Helvetica', '', 9);
         $this->Cell(0, 5, $header3, 0, 1, 'C');
-        $this->Line(10, 38, $this->w - 10, 38); // Sesuaikan posisi garis
-        $this->Ln(10);
+
+        // Tentukan posisi Y akhir dari logo dan teks
+        $y_after_logo = $logoY + $logoHeight;
+        $y_after_text = $this->GetY();
+        $bottom_y = max($y_after_logo, $y_after_text);
+
+        // Gambar garis di bawah elemen yang paling bawah
+        $this->Line($this->lMargin, $bottom_y + 2, $this->w - $this->rMargin, $bottom_y + 2);
+        $this->SetY($bottom_y + 5); // Atur posisi Y untuk konten selanjutnya
 
         // Report Title and Period
         $this->SetFont('Helvetica', 'B', 12);

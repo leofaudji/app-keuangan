@@ -369,3 +369,9 @@ ALTER TABLE `general_ledger` ADD KEY `idx_reconciliation_id` (`reconciliation_id
 
 -- Tambahkan index untuk mempercepat query
 CREATE INDEX `idx_reconciliation` ON `general_ledger` (`account_id`, `is_reconciled`, `tanggal`);
+
+ALTER TABLE `users`
+ADD COLUMN `remember_selector` VARCHAR(255) NULL DEFAULT NULL AFTER `reset_token_expires_at`,
+ADD COLUMN `remember_validator_hash` VARCHAR(255) NULL DEFAULT NULL AFTER `remember_selector`;
+
+CREATE INDEX `remember_selector_idx` ON `users` (`remember_selector`);

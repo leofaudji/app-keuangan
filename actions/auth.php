@@ -34,6 +34,31 @@ try {
         $_SESSION['nama_lengkap'] = $user['nama_lengkap'] ?? 'Pengguna';
         $_SESSION['role'] = $user['role'] ?? 'user';
 
+        // Handle "Remember Me"
+        if (!empty($_POST['remember_me'])) {
+            $selector = bin2hex(random_bytes(16));
+            $validator = bin2hex(random_bytes(32));
+            $validator_hash = hash('sha256', $validator);
+            $expires = time() + (86400 * 30); // 30 hari
+
+            // Simpan selector dan hash validator ke database
+            $stmt_remember = $conn->prepare("UPDATE users SET remember_selector = ?, remember_validator_hash = ? WHERE id = ?");
+            $stmt_remember->bind_param("ssi", $selector, $validator_hash, $user['id']);
+            $stmt_remember->execute();
+            $stmt_remember->close();
+
+            // Set cookie di browser
+            setcookie(
+                'remember_me',
+                $selector . ':' . $validator,
+                $expires,
+                BASE_PATH . '/', // Path cookie
+                "", // Domain
+                isset($_SERVER['HTTPS']), // Secure
+                true // HttpOnly
+            );
+        }
+
         log_activity($user['username'], 'Login', 'Login berhasil.');
 
         // Redirect ke halaman dashboard yang sebenarnya

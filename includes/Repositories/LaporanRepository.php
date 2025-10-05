@@ -375,11 +375,13 @@ class LaporanRepository
 
         $total_anggaran = 0;
         $total_realisasi = 0;
+        $total_realisasi_lalu = 0;
         foreach ($data as &$row) {
             $row['sisa_anggaran'] = (float)$row['anggaran_bulanan'] - (float)$row['realisasi_belanja'];
             $row['persentase'] = ((float)$row['anggaran_bulanan'] > 0) ? (((float)$row['realisasi_belanja'] / (float)$row['anggaran_bulanan']) * 100) : 0;
             $total_anggaran += (float)$row['anggaran_bulanan'];
             $total_realisasi += (float)$row['realisasi_belanja'];
+            $total_realisasi_lalu += (float)$row['realisasi_belanja_lalu'];
         }
 
         return [
@@ -388,6 +390,8 @@ class LaporanRepository
                 'total_anggaran' => $total_anggaran,
                 'total_realisasi' => $total_realisasi,
                 'total_sisa' => $total_anggaran - $total_realisasi,
+                'total_realisasi_lalu' => $total_realisasi_lalu,
+                'compare_mode' => $compare
             ]
         ];
     }

@@ -15,6 +15,9 @@ if (ini_get("session.use_cookies")) {
     setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
 }
 session_destroy();
+// Hapus juga cookie "remember_me"
+setcookie('remember_me', '', time() - 42000, BASE_PATH . '/');
+
 
 // Arahkan ke halaman login
 header('Location: ' . base_url('/login'));

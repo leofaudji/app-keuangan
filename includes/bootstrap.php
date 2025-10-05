@@ -9,6 +9,62 @@ require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/RateLimiter.php';
 
 /**
+ * Mencoba untuk login pengguna menggunakan data dari cookie.
+ * @param string $selector
+ * @param string $validator
+ */
+function attempt_login_with_cookie($selector, $validator) {
+    $conn = Database::getInstance()->getConnection();
+    $stmt = $conn->prepare("SELECT id, username, role, nama_lengkap, remember_validator_hash FROM users WHERE remember_selector = ?");
+    $stmt->bind_param("s", $selector);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($user) {
+        $validator_hash_from_db = $user['remember_validator_hash'];
+        if (hash_equals($validator_hash_from_db, hash('sha256', $validator))) {
+            // Token valid, login pengguna
+            session_regenerate_id(true);
+            $_SESSION['loggedin'] = true;
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['nama_lengkap'] = $user['nama_lengkap'];
+            $_SESSION['role'] = $user['role'];
+
+            // --- Token Rotation (Penting untuk Keamanan) ---
+            // Buat token baru untuk mencegah pencurian cookie
+            $new_selector = bin2hex(random_bytes(16));
+            $new_validator = bin2hex(random_bytes(32));
+            $new_validator_hash = hash('sha256', $new_validator);
+            $expires = time() + (86400 * 30); // 30 hari
+
+            $stmt_rotate = $conn->prepare("UPDATE users SET remember_selector = ?, remember_validator_hash = ? WHERE id = ?");
+            $stmt_rotate->bind_param("ssi", $new_selector, $new_validator_hash, $user['id']);
+            $stmt_rotate->execute();
+            $stmt_rotate->close();
+
+            setcookie(
+                'remember_me',
+                $new_selector . ':' . $new_validator,
+                $expires,
+                BASE_PATH . '/',
+                "",
+                isset($_SERVER['HTTPS']),
+                true
+            );
+        } else {
+            // Token tidak cocok, hapus dari DB dan cookie untuk keamanan
+            // (menandakan kemungkinan pencurian cookie)
+            $stmt_clear = $conn->prepare("UPDATE users SET remember_selector = NULL, remember_validator_hash = NULL WHERE remember_selector = ?");
+            $stmt_clear->bind_param("s", $selector);
+            $stmt_clear->execute();
+            setcookie('remember_me', '', time() - 3600, BASE_PATH . '/');
+        }
+    }
+}
+
+/**
  * Mengambil nominal iuran yang berlaku untuk periode tertentu dari histori.
  *
  * @param int $tahun

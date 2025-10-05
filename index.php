@@ -6,6 +6,19 @@ session_start();
 
 // Muat komponen inti
 require_once 'includes/bootstrap.php';
+
+// --- Auto Login from "Remember Me" Cookie ---
+// Jalankan ini setelah bootstrap (untuk fungsi) tetapi sebelum router (untuk otentikasi)
+if (empty($_SESSION['loggedin']) && isset($_COOKIE['remember_me'])) {
+    list($selector, $validator) = explode(':', $_COOKIE['remember_me'], 2);
+
+    if (!empty($selector) && !empty($validator)) {
+        // Fungsi attempt_login_with_cookie() didefinisikan di dalam bootstrap.php
+        attempt_login_with_cookie($selector, $validator);
+    }
+}
+// --- End Auto Login ---
+
 require_once 'includes/Router.php';
 
 // Router membutuhkan base path yang sudah didefinisikan di bootstrap.php
@@ -16,6 +29,10 @@ $router = new Router(BASE_PATH);
 // Rute untuk tamu (hanya bisa diakses jika belum login)
 $router->get('/login', 'login.php', ['guest']);
 $router->post('/login', 'actions/auth.php'); // Handler untuk proses login
+$router->get('/forgot', 'pages/forgot_password.php', ['guest']);
+$router->post('/actions/forgot_password_action.php', 'actions/forgot_password_action.php', ['guest']);
+$router->get('/reset-password', 'pages/reset_password.php', ['guest']);
+$router->post('/reset-password', 'actions/reset_password_action.php', ['guest']);
 
 // Rute yang memerlukan otentikasi
 $router->get('/', function() {
