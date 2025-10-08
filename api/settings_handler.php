@@ -85,6 +85,7 @@ try {
                 'pendapatan' => array_values(array_filter($all_accounts, fn($acc) => $acc['tipe_akun'] == 'Pendapatan')),
                 'beban' => array_values(array_filter($all_accounts, fn($acc) => $acc['tipe_akun'] == 'Beban')),
                 'liabilitas' => array_values(array_filter($all_accounts, fn($acc) => $acc['tipe_akun'] == 'Liabilitas')),
+                'persediaan' => array_values(array_filter($all_accounts, fn($acc) => $acc['tipe_akun'] == 'Aset')) // Akun persediaan adalah bagian dari Aset
             ];
             echo json_encode(['status' => 'success', 'data' => $accounts]);
             exit;

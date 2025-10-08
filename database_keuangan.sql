@@ -1,7 +1,7 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- Hapus tabel lama jika ada
-DROP TABLE IF EXISTS `transaksi`, `anggaran`, `users`, `settings`, `accounts`, `activity_log`,`jurnal_entries`,`jurnal_details`,`general_ledger`, `suppliers`, `consignment_items`,`recurring_templates`, `bank_reconciliations`, `bank_statement_lines`, `fixed_assets`, `customers`, `invoices`, `invoice_items`, `payments_received`;
+DROP TABLE IF EXISTS `transaksi`, `anggaran`, `users`, `settings`, `accounts`, `activity_log`,`jurnal_entries`,`jurnal_details`,`general_ledger`, `suppliers`, `consignment_items`,`recurring_templates`, `reconciliations`, `fixed_assets`, `customers`, `invoices`, `invoice_items`, `payments_received`;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -208,6 +208,30 @@ CREATE TABLE `anggaran` (
   FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Tabel Aset Tetap
+CREATE TABLE `fixed_assets` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `nama_aset` varchar(150) NOT NULL,
+  `tanggal_akuisisi` date NOT NULL,
+  `harga_perolehan` decimal(15,2) NOT NULL,
+  `masa_manfaat` int(11) NOT NULL COMMENT 'Dalam tahun',
+  `metode_penyusutan` enum('Garis Lurus') NOT NULL DEFAULT 'Garis Lurus',
+  `akun_aset_id` int(11) NOT NULL,
+  `akun_akumulasi_penyusutan_id` int(11) NOT NULL,
+  `akun_beban_penyusutan_id` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `updated_by` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`akun_aset_id`) REFERENCES `accounts` (`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`akun_akumulasi_penyusutan_id`) REFERENCES `accounts` (`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`akun_beban_penyusutan_id`) REFERENCES `accounts` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Tabel untuk pengaturan
 CREATE TABLE `settings` (
   `setting_key` varchar(50) NOT NULL,
@@ -370,8 +394,3 @@ ALTER TABLE `general_ledger` ADD KEY `idx_reconciliation_id` (`reconciliation_id
 -- Tambahkan index untuk mempercepat query
 CREATE INDEX `idx_reconciliation` ON `general_ledger` (`account_id`, `is_reconciled`, `tanggal`);
 
-ALTER TABLE `users`
-ADD COLUMN `remember_selector` VARCHAR(255) NULL DEFAULT NULL AFTER `reset_token_expires_at`,
-ADD COLUMN `remember_validator_hash` VARCHAR(255) NULL DEFAULT NULL AFTER `remember_selector`;
-
-CREATE INDEX `remember_selector_idx` ON `users` (`remember_selector`);

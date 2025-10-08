@@ -143,7 +143,6 @@ body:not(.dark-mode) .sidebar-nav .nav-link.active {
     letter-spacing: .05rem;
 }
 
-
 /* --- Sidebar Collapsed State --- */
 body.sidebar-collapsed .sidebar {
     left: calc(-1 * var(--sidebar-width));

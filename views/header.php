@@ -50,8 +50,16 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
     })();
 </script>
 <div class="sidebar">
-    <a class="navbar-brand" href="<?= base_url('/dashboard') ?>"><i class="bi bi-house-door-fill"></i> <?= $app_name ?></a>
+    <a class="navbar-brand d-flex align-items-center" href="<?= base_url('/dashboard') ?>">
+        <?php
+        $logo_path = $app_settings['app_logo'] ?? null;
+        $logo_url = $logo_path ? base_url($logo_path) : base_url('assets/img/logo.png');
+        ?>
+        <img src="<?= $logo_url ?>" alt="Logo" height="30" class="me-2 rounded">
+        <span><?= $app_name ?></span>
+    </a>
     <ul class="sidebar-nav">
+        <!-- Menu Non-collapsible -->
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/dashboard') ?>"><i class="bi bi-speedometer2"></i> Dashboard</a>
         </li>
@@ -66,6 +74,11 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
         </li>
         <li class="nav-item">
             <a class="nav-link" href="<?= base_url('/rekonsiliasi-bank') ?>"><i class="bi bi-bank2"></i> Rekonsiliasi Bank</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="<?= base_url('/aset-tetap') ?>">
+                <i class="bi bi-building"></i> Aset Tetap
+            </a>
         </li>
 
         <!-- Akuntansi -->
@@ -161,6 +174,11 @@ $log_cleanup_days = (int)($app_settings['log_cleanup_interval_days'] ?? 180);
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
                     <li><a class="dropdown-item d-flex align-items-center" href="#" id="theme-switcher"><i class="bi bi-moon-stars-fill me-2"></i><span id="theme-switcher-text">Mode Gelap</span></a></li>
+                    <li><div class="dropdown-item d-flex align-items-center justify-content-between">
+                            <label for="theme-color-picker" class="d-flex align-items-center"><i class="bi bi-palette-fill me-2"></i>Warna Tema</label>
+                            <input type="color" id="theme-color-picker" class="form-control form-control-color" value="#007aff" title="Pilih warna tema Anda">
+                        </div>
+                    </li>
                     <li><a class="dropdown-item" href="<?= base_url('/my-profile/change-password') ?>"><i class="bi bi-key-fill me-2"></i>Ganti Password</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="<?= base_url('/logout') ?>" data-spa-ignore><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>

@@ -20,6 +20,9 @@ require_once PROJECT_ROOT . '/includes/ReportBuilders/PertumbuhanLabaReportBuild
 require_once PROJECT_ROOT . '/includes/ReportBuilders/AnalisisRasioReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/BukuPanduanReportBuilder.php';
 require_once PROJECT_ROOT . '/includes/ReportBuilders/RekonsiliasiReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/ReportBuilders/KonsinyasiReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/ReportBuilders/KonsinyasiSisaUtangReportBuilder.php';
+require_once PROJECT_ROOT . '/includes/ReportBuilders/AsetTetapReportBuilder.php';
 
 $conn = Database::getInstance()->getConnection();
 
@@ -57,6 +60,9 @@ $builder_map = [
     'analisis-rasio' => AnalisisRasioReportBuilder::class,
     'buku-panduan' => BukuPanduanReportBuilder::class,
     'rekonsiliasi' => RekonsiliasiReportBuilder::class,
+    'konsinyasi' => KonsinyasiReportBuilder::class,
+    'konsinyasi-sisa-utang' => KonsinyasiSisaUtangReportBuilder::class,
+    'aset-tetap' => AsetTetapReportBuilder::class,
 ];
 
 try {

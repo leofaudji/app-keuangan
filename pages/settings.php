@@ -118,7 +118,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
             </div>
             <div class="card-body">
                 <div class="alert alert-info small">
-                    Pilih akun default yang akan digunakan saat mencatat penjualan barang konsinyasi.
+                    Pilih akun-akun yang akan digunakan saat mencatat penerimaan dan penjualan barang konsinyasi.
                 </div>
                 <form id="konsinyasi-settings-form">
                     <div id="konsinyasi-settings-container">

@@ -55,6 +55,7 @@ $router->get('/konsinyasi', 'pages/konsinyasi.php', ['auth']);
 $router->get('/transaksi-berulang', 'pages/transaksi_berulang.php', ['auth']);
 $router->get('/rekonsiliasi-bank', 'pages/rekonsiliasi_bank.php', ['auth']);
 $router->get('/histori-rekonsiliasi', 'pages/histori_rekonsiliasi.php', ['auth']);
+$router->get('/aset-tetap', 'pages/aset_tetap.php', ['auth']);
 $router->get('/entri-jurnal', 'pages/entri_jurnal.php', ['auth']);
 $router->get('/coa', 'pages/coa.php', ['auth']);
 $router->get('/saldo-awal-neraca', 'pages/saldo_awal_neraca.php', ['auth']);
@@ -120,6 +121,8 @@ $router->get('/api/anggaran', 'api/anggaran_handler.php', ['auth']);
 $router->post('/api/anggaran', 'api/anggaran_handler.php', ['auth']);
 $router->get('/api/settings', 'api/settings_handler.php', ['auth']);
 $router->post('/api/settings', 'api/settings_handler.php', ['auth']);
+$router->get('/api/aset_tetap', 'api/aset_tetap_handler.php', ['auth']);
+$router->post('/api/aset_tetap', 'api/aset_tetap_handler.php', ['auth']);
 $router->get('/api/global-search', 'api/global_search_handler.php', ['auth']); // API untuk pencarian global
 $router->get('/api/users', 'api/users_handler.php', ['auth', 'admin']); // API untuk manajemen pengguna
 $router->post('/api/users', 'api/users_handler.php', ['auth', 'admin']);

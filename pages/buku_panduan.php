@@ -46,10 +46,10 @@ if (!$is_spa_request) {
                     <li>Pastikan <strong>Total Debit dan Total Kredit seimbang (BALANCE)</strong> sebelum menyimpan.</li>
                 </ol>
                 <div class="d-flex gap-2 mt-3">
-                    <a href="<?= base_url('/coa') ?>" class="btn btn-sm btn-outline-primary">
+                    <a href="<?= base_url('/coa') ?>" class="btn btn-sm btn-outline-primary" target="_blank">
                         <i class="bi bi-box-arrow-up-right me-2"></i>Buka Bagan Akun
                     </a>
-                    <a href="<?= base_url('/saldo-awal-neraca') ?>" class="btn btn-sm btn-outline-primary">
+                    <a href="<?= base_url('/saldo-awal-neraca') ?>" class="btn btn-sm btn-outline-primary" target="_blank">
                         <i class="bi bi-box-arrow-up-right me-2"></i>Buka Saldo Awal
                     </a>
                 </div>
@@ -75,7 +75,7 @@ if (!$is_spa_request) {
                     <li>Pilih akun Kas/Bank yang digunakan dan akun lawan (misal: Akun Beban untuk pengeluaran, atau Akun Pendapatan untuk pemasukan).</li>
                     <li>Klik <strong>"Simpan Transaksi"</strong>. Sistem akan otomatis membuat jurnal di belakang layar.</li>
                 </ol>
-                <a href="<?= base_url('/transaksi#add') ?>" class="btn btn-sm btn-outline-primary mt-2">
+                <a href="<?= base_url('/transaksi#add') ?>" class="btn btn-sm btn-outline-primary mt-2" target="_blank">
                     <i class="bi bi-box-arrow-up-right me-2"></i>Buka Form Tambah Transaksi
                 </a>
             </div>
@@ -99,7 +99,7 @@ if (!$is_spa_request) {
                     <li>Pilih akun dan isi kolom Debit atau Kredit.</li>
                     <li>Pastikan <strong>Total Debit dan Total Kredit seimbang</strong> sebelum menyimpan.</li>
                 </ol>
-                <a href="<?= base_url('/entri-jurnal') ?>" class="btn btn-sm btn-outline-primary mt-2">
+                <a href="<?= base_url('/entri-jurnal') ?>" class="btn btn-sm btn-outline-primary mt-2" target="_blank">
                     <i class="bi bi-box-arrow-up-right me-2"></i>Buka Halaman Entri Jurnal
                 </a>
             </div>
@@ -128,7 +128,7 @@ if (!$is_spa_request) {
                 <div class="alert alert-info small mt-3">
                     <strong>Tips:</strong> Jika ada selisih, kemungkinan ada transaksi yang belum Anda catat (misalnya biaya admin bank) atau ada kesalahan pencatatan. Anda bisa menambahkannya melalui menu Transaksi atau Entri Jurnal.
                 </div>
-                <a href="<?= base_url('/rekonsiliasi-bank') ?>" class="btn btn-sm btn-outline-primary mt-2">
+                <a href="<?= base_url('/rekonsiliasi-bank') ?>" class="btn btn-sm btn-outline-primary mt-2" target="_blank">
                     <i class="bi bi-box-arrow-up-right me-2"></i>Buka Halaman Rekonsiliasi Bank
                 </a>
             </div>
@@ -153,10 +153,10 @@ if (!$is_spa_request) {
                     <li>Anda dapat melihat dan mengelola semua template di halaman <strong>Pengaturan & Master &raquo; Transaksi Berulang</strong>.</li>
                 </ol>
                 <div class="d-flex gap-2 mt-3">
-                    <a href="<?= base_url('/entri-jurnal') ?>" class="btn btn-sm btn-outline-primary">
+                    <a href="<?= base_url('/entri-jurnal') ?>" class="btn btn-sm btn-outline-primary" target="_blank">
                         <i class="bi bi-box-arrow-up-right me-2"></i>Mulai dari Entri Jurnal
                     </a>
-                    <a href="<?= base_url('/transaksi-berulang') ?>" class="btn btn-sm btn-outline-secondary">
+                    <a href="<?= base_url('/transaksi-berulang') ?>" class="btn btn-sm btn-outline-secondary" target="_blank">
                         <i class="bi bi-box-arrow-up-right me-2"></i>Lihat Halaman Template
                     </a>
                 </div>
@@ -182,7 +182,7 @@ if (!$is_spa_request) {
                     <li><strong>Analisis Rasio:</strong> Menghitung rasio keuangan penting (Profit Margin, ROE, dll) untuk mengukur kesehatan finansial.</li>
                     <li><strong>Anggaran:</strong> Membandingkan anggaran belanja dengan realisasi.</li>
                 </ul>
-                <a href="<?= base_url('/laporan') ?>" class="btn btn-sm btn-outline-primary mt-2">
+                <a href="<?= base_url('/laporan') ?>" class="btn btn-sm btn-outline-primary mt-2" target="_blank">
                     <i class="bi bi-box-arrow-up-right me-2"></i>Buka Halaman Laporan Utama
                 </a>
             </div>
@@ -210,7 +210,7 @@ if (!$is_spa_request) {
                     <li>Sistem akan secara otomatis membuat Jurnal Penutup. Anda dapat melihat hasilnya di halaman <strong>Daftar Jurnal</strong>.</li>
                     <li>Setelah proses ini, semua transaksi sebelum tanggal tutup buku akan dikunci dan tidak dapat diubah atau dihapus.</li>
                 </ol>
-                <a href="<?= base_url('/tutup-buku') ?>" class="btn btn-sm btn-outline-primary mt-2">
+                <a href="<?= base_url('/tutup-buku') ?>" class="btn btn-sm btn-outline-primary mt-2" target="_blank">
                     <i class="bi bi-box-arrow-up-right me-2"></i>Lihat Halaman Tutup Buku
                 </a>
             </div>
@@ -241,7 +241,7 @@ if (!$is_spa_request) {
                     <li>Lakukan perubahan yang diperlukan pada form.</li>
                     <li>Klik tombol <strong>"Simpan Pengaturan"</strong> di bagian bawah setiap tab untuk menerapkan perubahan.</li>
                 </ol>
-                <a href="<?= base_url('/settings') ?>" class="btn btn-sm btn-outline-primary mt-2">
+                <a href="<?= base_url('/settings') ?>" class="btn btn-sm btn-outline-primary mt-2" target="_blank">
                     <i class="bi bi-box-arrow-up-right me-2"></i>Buka Halaman Pengaturan
                 </a>
             </div>

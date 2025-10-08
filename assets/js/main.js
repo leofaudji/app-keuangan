@@ -234,6 +234,8 @@ function runPageScripts(path) {
         initHistoriRekonsiliasiPage();
     } else if (cleanPath === '/rekonsiliasi-bank') {
         initRekonsiliasiBankPage();
+    } else if (cleanPath === '/aset-tetap') {
+        initAsetTetapPage();
     } else if (cleanPath === '/buku-panduan') {
         // Halaman ini statis dan tidak memerlukan inisialisasi JavaScript.
         // Cukup daftarkan agar tidak error dan hentikan eksekusi.
@@ -561,10 +563,10 @@ function initDashboardPage() {
             }
 
             // Render chart
-            if (preferences.expense_category) {
-                const chartCanvas = document.getElementById('expense-category-chart');
-                if (window.expenseChart) window.expenseChart.destroy();
-                window.expenseChart = new Chart(chartCanvas, {
+            if (preferences.expense_category && document.getElementById('expense-category-chart')) {
+                const chartCtx = document.getElementById('expense-category-chart').getContext('2d');
+                if (window.dashboardExpenseChart) window.dashboardExpenseChart.destroy();
+                window.dashboardExpenseChart = new Chart(chartCtx, {
                     type: 'doughnut',
                     data: {
                         labels: data.pengeluaran_per_kategori.labels,
@@ -575,10 +577,10 @@ function initDashboardPage() {
             }
 
             // Render profit loss trend chart
-            if (preferences.profit_loss_trend) {
-                const trendChartCanvas = document.getElementById('profit-loss-trend-chart');
-                if (window.trendChart) window.trendChart.destroy();
-                window.trendChart = new Chart(trendChartCanvas, {
+            if (preferences.profit_loss_trend && document.getElementById('profit-loss-trend-chart')) {
+                const trendChartCtx = document.getElementById('profit-loss-trend-chart').getContext('2d');
+                if (window.dashboardTrendChart) window.dashboardTrendChart.destroy();
+                window.dashboardTrendChart = new Chart(trendChartCtx, {
                     type: 'line',
                     data: {
                         labels: data.laba_rugi_harian.labels.map(d => new Date(d).toLocaleDateString('id-ID', {day: '2-digit', month: 'short'})),
@@ -1747,12 +1749,9 @@ function initLaporanHarianPage() {
     const chartCanvas = document.getElementById('lh-chart');
 
     if (!tanggalInput) return;
-
     tanggalInput.valueAsDate = new Date(); // Set default to today
 
     const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
-
-    let dailyChart = null; // Variable to hold chart instance
     async function loadReport() {
         const tanggal = tanggalInput.value;
         if (!tanggal) {
@@ -1794,10 +1793,10 @@ function initLaporanHarianPage() {
             `;
 
             // Render Chart
-            if (dailyChart) {
-                dailyChart.destroy();
+            if (window.dailyChart) {
+                window.dailyChart.destroy();
             }
-            dailyChart = new Chart(chartCanvas, {
+            window.dailyChart = new Chart(chartCanvas, {
                 type: 'doughnut',
                 data: {
                     labels: ['Pemasukan', 'Pengeluaran'],
@@ -2360,12 +2359,12 @@ function initAnggaranPage() {
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message);
 
-            if (trendChart) {
-                trendChart.destroy();
+            if (window.anggaranTrendChart) {
+                window.anggaranTrendChart.destroy();
             }
 
             const labels = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-            trendChart = new Chart(trendChartCanvas, {
+            window.anggaranTrendChart = new Chart(trendChartCanvas, {
                 type: 'line',
                 data: {
                     labels: labels,
@@ -2441,8 +2440,8 @@ function initAnggaranPage() {
             reportTableBody.innerHTML = '';
 
             // Update Chart
-            if (budgetChart) {
-                budgetChart.destroy();
+            if (window.anggaranBudgetChart) {
+                window.anggaranBudgetChart.destroy();
             }
             if (result.status === 'success' && result.data.length > 0) {
                 const labels = result.data.map(item => item.nama_akun);
@@ -2484,7 +2483,7 @@ function initAnggaranPage() {
                     });
                 }
 
-                budgetChart = new Chart(chartCanvas, chartConfig);
+                window.anggaranBudgetChart = new Chart(chartCanvas, chartConfig);
             }
 
             if (result.status === 'success' && result.data.length > 0) {
@@ -2577,8 +2576,8 @@ function initAnggaranPage() {
         e.preventDefault();
 
         // 1. Ambil gambar dari kedua chart sebagai base64
-        const trendChartImage = trendChart ? trendChart.toBase64Image() : '';
-        const budgetChartImage = budgetChart ? budgetChart.toBase64Image() : '';
+        const trendChartImage = window.anggaranTrendChart ? window.anggaranTrendChart.toBase64Image() : '';
+        const budgetChartImage = window.anggaranBudgetChart ? window.anggaranBudgetChart.toBase64Image() : '';
 
         // 2. Buat form sementara untuk mengirim data via POST
         const form = document.createElement('form');
@@ -2625,6 +2624,10 @@ function initAnggaranPage() {
     });
     compareSwitch.addEventListener('change', loadReport);
 
+    // Inisialisasi instance modal jika belum ada
+    if (!anggaranModalInstance) {
+        anggaranModalInstance = new bootstrap.Modal(modalEl);
+    }
     // Cek apakah listener sudah ada sebelum menambahkannya
     // Listener untuk modal ini perlu dicek karena modal ada di luar area konten utama SPA
     if (!modalEl.dataset.listenerAttached) {
@@ -2652,7 +2655,6 @@ function initLaporanPertumbuhanLabaPage() {
 
     if (!yearFilter) return;
 
-    let profitChart = null;
     const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
     const quarters = ["Triwulan 1 (Jan-Mar)", "Triwulan 2 (Apr-Jun)", "Triwulan 3 (Jul-Sep)", "Triwulan 4 (Okt-Des)"];
     const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
@@ -2761,8 +2763,8 @@ function initLaporanPertumbuhanLabaPage() {
             });
 
             // Render Chart
-            if (profitChart) {
-                profitChart.destroy();
+            if (window.lplProfitChart) {
+                window.lplProfitChart.destroy();
             }
 
             let chartLabels;
@@ -2833,7 +2835,7 @@ function initLaporanPertumbuhanLabaPage() {
                     tension: 0.1
                 });
             }
-            profitChart = new Chart(chartCanvas, chartConfig);
+            window.lplProfitChart = new Chart(chartCanvas, chartConfig);
 
         } catch (error) {
             tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Gagal memuat laporan: ${error.message}</td></tr>`;
@@ -2849,7 +2851,7 @@ function initLaporanPertumbuhanLabaPage() {
         e.preventDefault();
 
         // 1. Ambil gambar chart sebagai base64
-        const chartImage = profitChart ? profitChart.toBase64Image() : '';
+        const chartImage = window.lplProfitChart ? window.lplProfitChart.toBase64Image() : '';
 
         // 2. Buat form sementara untuk mengirim data via POST
         const form = document.createElement('form');
@@ -3055,14 +3057,57 @@ function initKonsinyasiPage() {
     const saleForm = document.getElementById('consignment-sale-form');
     const reportLink = document.getElementById('view-consignment-report-link');
     const reportModalEl = document.getElementById('consignmentReportModal');
+    const debtSummaryReportLink = document.getElementById('view-debt-summary-report-link');
+    const printDebtSummaryBtn = document.getElementById('print-debt-summary-btn');
+    const debtSummaryModalEl = document.getElementById('debtSummaryReportModal');
+    const filterSisaUtangBtn = document.getElementById('filter-sisa-utang-btn');
 
-    if (!supplierTableBody || !itemTableBody) return;
+    if (!supplierTableBody || !itemTableBody || !reportModalEl) return;
 
     const supplierModal = new bootstrap.Modal(supplierModalEl);
     const itemModal = new bootstrap.Modal(itemModalEl);
     const reportModal = new bootstrap.Modal(reportModalEl);
 
     const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+    // --- Report Modal Logic ---
+    const reportStartDateEl = document.getElementById('report-start-date');
+    const reportEndDateEl = document.getElementById('report-end-date');
+    const filterReportBtn = document.getElementById('filter-report-btn');
+    const printReportBtn = document.getElementById('print-report-btn');
+
+    async function loadConsignmentReport() {
+        const startDate = reportStartDateEl.value;
+        const endDate = reportEndDateEl.value;
+        if (!startDate || !endDate) {
+            showToast('Harap pilih tanggal mulai dan akhir.', 'error');
+            return;
+        }
+
+        const reportBody = document.getElementById('consignment-report-body');
+        reportBody.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
+        
+        const params = new URLSearchParams({ action: 'get_sales_report', start_date: startDate, end_date: endDate });
+        const response = await fetch(`${basePath}/api/konsinyasi?${params.toString()}`);
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            let html = '<table class="table table-sm table-hover"><thead><tr><th>Pemasok</th><th>Barang</th><th class="text-end">Terjual</th><th class="text-end">Harga Beli</th><th class="text-end">Total Utang</th></tr></thead><tbody>';
+            let totalUtangKeseluruhan = 0;
+            if (result.data.length > 0) {
+                result.data.forEach(row => {
+                    totalUtangKeseluruhan += parseFloat(row.total_utang);
+                    html += `<tr><td>${row.nama_pemasok}</td><td>${row.nama_barang}</td><td class="text-end">${row.total_terjual}</td><td class="text-end">${currencyFormatter.format(row.harga_beli)}</td><td class="text-end">${currencyFormatter.format(row.total_utang)}</td></tr>`;
+                });
+            } else {
+                html += '<tr><td colspan="5" class="text-center text-muted">Tidak ada penjualan pada periode ini.</td></tr>';
+            }
+            html += `</tbody><tfoot><tr class="table-light fw-bold"><td colspan="4" class="text-end">Total Utang Konsinyasi</td><td class="text-end">${currencyFormatter.format(totalUtangKeseluruhan)}</td></tr></tfoot></table>`;
+            reportBody.innerHTML = html;
+        } else {
+            reportBody.innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
+        }
+    }
 
     // --- Load Functions ---
     async function loadSuppliers() {
@@ -3086,7 +3131,7 @@ function initKonsinyasiPage() {
         itemTableBody.innerHTML = '';
         if (result.status === 'success' && result.data.length > 0) {
             result.data.forEach(i => {
-                itemTableBody.innerHTML += `<tr><td>${i.nama_barang}</td><td>${i.nama_pemasok}</td><td class="text-end">${currencyFormatter.format(i.harga_jual)}</td><td class="text-end">${currencyFormatter.format(i.harga_beli)}</td><td class="text-end">${i.stok_saat_ini}</td><td class="text-end"><button class="btn btn-sm btn-info edit-item-btn" data-id="${i.id}"><i class="bi bi-pencil-fill"></i></button> <button class="btn btn-sm btn-danger delete-item-btn" data-id="${i.id}"><i class="bi bi-trash-fill"></i></button></td></tr>`;
+                itemTableBody.innerHTML += `<tr><td>${i.nama_barang}</td><td>${i.nama_pemasok}</td><td class="text-end">${currencyFormatter.format(i.harga_jual)}</td><td class="text-end">${currencyFormatter.format(i.harga_beli)}</td><td class="text-end">${i.stok_saat_ini} / ${i.stok_awal}</td><td class="text-end"><button class="btn btn-sm btn-info edit-item-btn" data-id="${i.id}"><i class="bi bi-pencil-fill"></i></button> <button class="btn btn-sm btn-danger delete-item-btn" data-id="${i.id}"><i class="bi bi-trash-fill"></i></button></td></tr>`;
             });
         } else {
             itemTableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Belum ada barang konsinyasi.</td></tr>';
@@ -3107,6 +3152,65 @@ function initKonsinyasiPage() {
             });
         }
     }
+
+    async function loadSuppliersForPayment() {
+        const select = document.getElementById('cp-supplier-id');
+        select.innerHTML = '<option>Memuat...</option>';
+        const response = await fetch(`${basePath}/api/konsinyasi?action=list_suppliers`);
+        const result = await response.json();
+        select.innerHTML = '<option value="">-- Pilih Pemasok --</option>';
+        if (result.status === 'success') {
+            result.data.forEach(s => select.add(new Option(s.nama_pemasok, s.id)));
+        }
+    }
+
+    async function loadCashAccountsForPayment() {
+        const select = document.getElementById('cp-kas-account-id');
+        select.innerHTML = '<option>Memuat...</option>';
+        const response = await fetch(`${basePath}/api/settings?action=get_cash_accounts`);
+        const result = await response.json();
+        select.innerHTML = '<option value="">-- Pilih Akun Kas/Bank --</option>';
+        if (result.status === 'success') {
+            result.data.forEach(acc => select.add(new Option(acc.nama_akun, acc.id)));
+        }
+    }
+
+    async function loadPaymentHistory() {
+        const tableBody = document.getElementById('payment-history-table-body');
+        tableBody.innerHTML = '<tr><td colspan="4" class="text-center p-4"><div class="spinner-border spinner-border-sm"></div></td></tr>';
+        const response = await fetch(`${basePath}/api/konsinyasi?action=list_payments`);
+        const result = await response.json();
+        tableBody.innerHTML = '';
+        if (result.status === 'success' && result.data.length > 0) {
+            result.data.forEach(p => {
+                tableBody.innerHTML += `
+                    <tr>
+                        <td>${new Date(p.tanggal).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</td>
+                        <td>${p.nama_pemasok || '<i>Tidak terdeteksi</i>'}</td>
+                        <td><small>${p.keterangan}</small></td>
+                        <td class="text-end">${currencyFormatter.format(p.jumlah)}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Belum ada riwayat pembayaran.</td></tr>';
+        }
+    }
+
+    document.getElementById('consignment-payment-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append('action', 'pay_debt');
+        formData.append('tanggal', document.getElementById('cp-tanggal').value);
+        formData.append('supplier_id', document.getElementById('cp-supplier-id').value);
+        formData.append('jumlah', document.getElementById('cp-jumlah').value);
+        formData.append('kas_account_id', document.getElementById('cp-kas-account-id').value);
+        formData.append('keterangan', document.getElementById('cp-keterangan').value);
+        const response = await fetch(`${basePath}/api/konsinyasi`, { method: 'POST', body: formData });
+        const result = await response.json();
+        showToast(result.message, result.status);
+        if (result.status === 'success') { e.target.reset(); document.getElementById('cp-tanggal').valueAsDate = new Date(); loadPaymentHistory(); }
+    });
 
     // --- Event Listeners ---
     document.getElementById('save-supplier-btn').addEventListener('click', async () => {
@@ -3178,10 +3282,96 @@ function initKonsinyasiPage() {
         } else {
             reportBody.innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
         }
+        const now = new Date();
+    });
+
+    filterReportBtn.addEventListener('click', loadConsignmentReport);
+
+    printReportBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank';
+        const params = { report: 'konsinyasi', start_date: reportStartDateEl.value, end_date: reportEndDateEl.value };
+        for (const key in params) {
+            const hiddenField = document.createElement('input'); hiddenField.type = 'hidden'; hiddenField.name = key; hiddenField.value = params[key]; form.appendChild(hiddenField);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     });
 
     document.getElementById('barang-tab').addEventListener('shown.bs.tab', () => {
         loadItems();
+    });
+
+    document.getElementById('pembayaran-tab').addEventListener('shown.bs.tab', () => {
+        loadSuppliersForPayment();
+        loadCashAccountsForPayment();
+        loadPaymentHistory();
+        document.getElementById('cp-tanggal').valueAsDate = new Date();
+    });
+
+    async function loadDebtSummaryReport() {
+        const startDate = document.getElementById('sisa-utang-start-date').value;
+        const endDate = document.getElementById('sisa-utang-end-date').value;
+        const reportBody = document.getElementById('debt-summary-report-body');
+
+        if (!startDate || !endDate) {
+            showToast('Harap pilih tanggal mulai dan akhir.', 'error');
+            return;
+        }
+
+        reportBody.innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
+
+        try {
+            const params = new URLSearchParams({ action: 'get_debt_summary_report', start_date: startDate, end_date: endDate });
+            const response = await fetch(`${basePath}/api/konsinyasi?${params.toString()}`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            let html = '<table class="table table-sm table-hover"><thead><tr><th>Pemasok</th><th class="text-end">Total Utang</th><th class="text-end">Total Bayar</th><th class="text-end">Sisa Utang</th></tr></thead><tbody>';
+            let grandTotalSisa = 0;
+            result.data.forEach(row => {
+                grandTotalSisa += parseFloat(row.sisa_utang);
+                html += `<tr><td>${row.nama_pemasok}</td><td class="text-end">${currencyFormatter.format(row.total_utang)}</td><td class="text-end">${currencyFormatter.format(row.total_bayar)}</td><td class="text-end fw-bold">${currencyFormatter.format(row.sisa_utang)}</td></tr>`;
+            });
+            html += `</tbody><tfoot><tr class="table-light fw-bold"><td colspan="3" class="text-end">Total Sisa Utang Keseluruhan</td><td class="text-end">${currencyFormatter.format(grandTotalSisa)}</td></tr></tfoot></table>`;
+            reportBody.innerHTML = html;
+
+        } catch (error) {
+            reportBody.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+        }
+    }
+
+    debtSummaryModalEl.addEventListener('show.bs.modal', () => {
+        const startDateEl = document.getElementById('sisa-utang-start-date');
+        const endDateEl = document.getElementById('sisa-utang-end-date');
+        const now = new Date();
+        startDateEl.value = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0]; // Awal tahun
+        endDateEl.value = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0]; // Akhir tahun
+    });
+
+    filterSisaUtangBtn.addEventListener('click', loadDebtSummaryReport);
+
+    printDebtSummaryBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank';
+        const params = { 
+            report: 'konsinyasi-sisa-utang',
+            start_date: document.getElementById('sisa-utang-start-date').value,
+            end_date: document.getElementById('sisa-utang-end-date').value
+        };
+        for (const key in params) {
+            const hiddenField = document.createElement('input'); hiddenField.type = 'hidden'; hiddenField.name = key; hiddenField.value = params[key]; form.appendChild(hiddenField);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     });
 
     // --- Modal & Table Delegation ---
@@ -3271,6 +3461,159 @@ function initKonsinyasiPage() {
     loadItems();
     loadItemsForSale();
     document.getElementById('cs-tanggal').valueAsDate = new Date();
+}
+
+function initAsetTetapPage() {
+    const tableBody = document.getElementById('assets-table-body');
+    const modalEl = document.getElementById('assetModal');
+    const modal = new bootstrap.Modal(modalEl);
+    const form = document.getElementById('asset-form');
+    const saveBtn = document.getElementById('save-asset-btn');
+    const postDepreciationBtn = document.getElementById('post-depreciation-btn');
+    const printReportBtn = document.getElementById('print-asset-report-btn');
+
+    if (!tableBody) return;
+
+    const currencyFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+    function setupDepreciationFilters() {
+        const monthSelect = document.getElementById('depreciation-month');
+        const yearSelect = document.getElementById('depreciation-year');
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth(); // 0-11
+
+        // Populate years
+        for (let i = 0; i < 5; i++) {
+            yearSelect.add(new Option(currentYear - i, currentYear - i));
+        }
+
+        // Populate months
+        const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        months.forEach((month, index) => {
+            monthSelect.add(new Option(month, index + 1));
+        });
+
+        // Set default to current month and year
+        monthSelect.value = currentMonth + 1;
+        yearSelect.value = currentYear;
+    }
+
+    async function loadAssets() {
+        tableBody.innerHTML = `<tr><td colspan="6" class="text-center p-5"><div class="spinner-border"></div></td></tr>`;
+        try {
+            const response = await fetch(`${basePath}/api/aset_tetap?action=list`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            tableBody.innerHTML = '';
+            if (result.data.length > 0) {
+                result.data.forEach(asset => {
+                    const row = `
+                        <tr>
+                            <td>${asset.nama_aset}</td>
+                            <td>${new Date(asset.tanggal_akuisisi).toLocaleDateString('id-ID')}</td>
+                            <td class="text-end">${currencyFormatter.format(asset.harga_perolehan)}</td>
+                            <td class="text-end">${currencyFormatter.format(asset.akumulasi_penyusutan)}</td>
+                            <td class="text-end fw-bold">${currencyFormatter.format(asset.nilai_buku)}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-info edit-asset-btn" data-id="${asset.id}"><i class="bi bi-pencil-fill"></i></button>
+                                <button class="btn btn-sm btn-danger delete-asset-btn" data-id="${asset.id}"><i class="bi bi-trash-fill"></i></button>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.insertAdjacentHTML('beforeend', row);
+                });
+            } else {
+                tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Belum ada aset tetap yang dicatat.</td></tr>';
+            }
+        } catch (error) {
+            tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Gagal memuat data: ${error.message}</td></tr>`;
+        }
+    }
+
+    async function loadAccountsForModal() {
+        try {
+            const response = await fetch(`${basePath}/api/aset_tetap?action=get_accounts`);
+            const result = await response.json();
+            if (result.status !== 'success') throw new Error(result.message);
+
+            const { aset, beban } = result.data;
+            const createOptions = (accounts) => accounts.map(acc => `<option value="${acc.id}">${acc.kode_akun} - ${acc.nama_akun}</option>`).join('');
+
+            document.getElementById('akun_aset_id').innerHTML = createOptions(aset);
+            document.getElementById('akun_akumulasi_penyusutan_id').innerHTML = createOptions(aset);
+            document.getElementById('akun_beban_penyusutan_id').innerHTML = createOptions(beban);
+        } catch (error) {
+            showToast(`Gagal memuat daftar akun: ${error.message}`, 'error');
+        }
+    }
+
+    saveBtn.addEventListener('click', async () => {
+        const formData = new FormData(form);
+        const response = await fetch(`${basePath}/api/aset_tetap`, { method: 'POST', body: formData });
+        const result = await response.json();
+        showToast(result.message, result.status);
+        if (result.status === 'success') {
+            modal.hide();
+            loadAssets();
+        }
+    });
+
+    postDepreciationBtn.addEventListener('click', async () => {
+        const month = document.getElementById('depreciation-month').value;
+        const year = document.getElementById('depreciation-year').value;
+        if (confirm(`Anda yakin ingin memposting jurnal penyusutan untuk periode ${month}/${year}?`)) {
+            const formData = new FormData();
+            formData.append('action', 'post_depreciation');
+            formData.append('month', month);
+            formData.append('year', year);
+            const response = await fetch(`${basePath}/api/aset_tetap`, { method: 'POST', body: formData });
+            const result = await response.json();
+            showToast(result.message, result.status);
+            if (result.status === 'success') {
+                loadAssets();
+            }
+        }
+    });
+
+    printReportBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `${basePath}/api/pdf`;
+        form.target = '_blank';
+        const params = { report: 'aset-tetap', per_tanggal: new Date().toISOString().split('T')[0] };
+        for (const key in params) {
+            const hiddenField = document.createElement('input'); hiddenField.type = 'hidden'; hiddenField.name = key; hiddenField.value = params[key]; form.appendChild(hiddenField);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    });
+
+    tableBody.addEventListener('click', async (e) => {
+        const editBtn = e.target.closest('.edit-asset-btn');
+        if (editBtn) {
+            const response = await fetch(`${basePath}/api/aset_tetap?action=get_single&id=${editBtn.dataset.id}`);
+            const result = await response.json();
+            if (result.status === 'success') {
+                const asset = result.data;
+                form.reset();
+                document.getElementById('assetModalLabel').textContent = 'Edit Aset Tetap';
+                Object.keys(asset).forEach(key => {
+                    const el = document.getElementById(key);
+                    if (el) el.value = asset[key];
+                });
+                document.getElementById('asset-id').value = asset.id;
+                modal.show();
+            }
+        }
+    });
+
+    setupDepreciationFilters();
+    loadAssets();
+    loadAccountsForModal();
 }
 
 function initUsersPage() {
@@ -4376,6 +4719,19 @@ function initSettingsPage() {
                                 <input class="form-control" type="file" id="app_logo" name="app_logo" accept="image/png, image/jpeg">
                             </div>
                             <hr>
+                            <h5 class="mb-3">Pengaturan Warna Halaman Login</h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="login_bg_color" class="form-label">Warna Latar Samping</label>
+                                    <input type="color" class="form-control form-control-color" id="login_bg_color" name="login_bg_color" value="${settings.login_bg_color || '#075E54'}" title="Pilih warna">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="login_btn_color" class="form-label">Warna Tombol Login</label>
+                                    <input type="color" class="form-control form-control-color" id="login_btn_color" name="login_btn_color" value="${settings.login_btn_color || '#25D366'}" title="Pilih warna">
+                                </div>
+                            </div>
+
+                            <hr>
                             <h5 class="mb-3">Pengaturan Header Laporan PDF</h5>
                             <div class="mb-3">
                                 <label for="pdf_header_line1" class="form-label">Header Baris 1</label>
@@ -4535,16 +4891,16 @@ function initSettingsPage() {
                 fetch(`${basePath}/api/settings?action=get_accounts_for_consignment`)
             ]);
             const settingsResult = await settingsRes.json();
-            const accountsResult = await accountsRes.json();
+            const accountsResult = await accountsRes.json(); // This contains {kas, pendapatan, beban, liabilitas, persediaan}
 
             if (settingsResult.status !== 'success' || accountsResult.status !== 'success') {
                 throw new Error(settingsResult.message || accountsResult.message);
             }
 
             const settings = settingsResult.data;
-            const { kas, pendapatan, beban, liabilitas } = accountsResult.data;
+            const { kas = [], pendapatan = [], beban = [], liabilitas = [], persediaan = [] } = accountsResult.data;
 
-            const createOptions = (accounts) => accounts.map(acc => `<option value="${acc.id}">${acc.nama_akun}</option>`).join('');
+            const createOptions = (accounts) => (accounts || []).map(acc => `<option value="${acc.id}">${acc.nama_akun}</option>`).join('');
 
             konsinyasiSettingsContainer.innerHTML = `
                 <div class="mb-3">
@@ -4563,6 +4919,10 @@ function initSettingsPage() {
                     <label for="consignment_payable_account" class="form-label">Akun Utang Konsinyasi</label>
                     <select class="form-select" id="consignment_payable_account" name="consignment_payable_account">${createOptions(liabilitas)}</select>
                 </div>
+                <div class="mb-3">
+                    <label for="consignment_inventory_account" class="form-label">Akun Persediaan Konsinyasi (Aset)</label>
+                    <select class="form-select" id="consignment_inventory_account" name="consignment_inventory_account">${createOptions(persediaan)}</select>
+                </div>
             `;
 
             // Set selected values
@@ -4570,6 +4930,7 @@ function initSettingsPage() {
             if (settings.consignment_revenue_account) document.getElementById('consignment_revenue_account').value = settings.consignment_revenue_account;
             if (settings.consignment_cogs_account) document.getElementById('consignment_cogs_account').value = settings.consignment_cogs_account;
             if (settings.consignment_payable_account) document.getElementById('consignment_payable_account').value = settings.consignment_payable_account;
+            if (settings.consignment_inventory_account) document.getElementById('consignment_inventory_account').value = settings.consignment_inventory_account;
         } catch (error) {
             konsinyasiSettingsContainer.innerHTML = `<div class="alert alert-danger">Gagal memuat pengaturan konsinyasi: ${error.message}</div>`;
         }
@@ -4972,6 +5333,34 @@ document.addEventListener('DOMContentLoaded', function () {
     runPageScripts(window.location.pathname);
 });
 
+// --- Global Theme Color Picker Logic ---
+function applyThemeColor(color) {
+    if (!color) return;
+    // Update CSS variables for the entire document
+    document.documentElement.style.setProperty('--cf-blue', color);
+    // Also update the Bootstrap variable for primary button background
+    document.documentElement.style.setProperty('--bs-btn-bg', color);
+    document.documentElement.style.setProperty('--bs-btn-border-color', color);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const savedColor = localStorage.getItem('theme_color');
+    const colorPicker = document.getElementById('theme-color-picker');
+
+    if (savedColor) {
+        applyThemeColor(savedColor);
+        if (colorPicker) {
+            colorPicker.value = savedColor;
+        }
+    }
+
+    if (colorPicker) {
+        colorPicker.addEventListener('input', (e) => {
+            applyThemeColor(e.target.value);
+            localStorage.setItem('theme_color', e.target.value);
+        });
+    }
+});
 // --- Recurring Modal Logic (Global) ---
 const recurringModalEl = document.getElementById('recurringModal');
 const recurringModal = recurringModalEl ? new bootstrap.Modal(recurringModalEl) : null;

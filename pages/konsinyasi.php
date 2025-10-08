@@ -11,19 +11,58 @@ if (!$is_spa_request) {
 
 <ul class="nav nav-tabs" id="konsinyasiTab" role="tablist">
   <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="penjualan-tab" data-bs-toggle="tab" data-bs-target="#penjualan-pane" type="button" role="tab">Penjualan Konsinyasi</button>
+    <button class="nav-link active" id="pemasok-tab" data-bs-toggle="tab" data-bs-target="#pemasok-pane" type="button" role="tab">Kelola Pemasok</button>
   </li>
   <li class="nav-item" role="presentation">
     <button class="nav-link" id="barang-tab" data-bs-toggle="tab" data-bs-target="#barang-pane" type="button" role="tab">Kelola Barang</button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="pemasok-tab" data-bs-toggle="tab" data-bs-target="#pemasok-pane" type="button" role="tab">Kelola Pemasok</button>
+    <button class="nav-link" id="penjualan-tab" data-bs-toggle="tab" data-bs-target="#penjualan-pane" type="button" role="tab">Penjualan Konsinyasi</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="pembayaran-tab" data-bs-toggle="tab" data-bs-target="#pembayaran-pane" type="button" role="tab">Pembayaran Utang</button>
   </li>
 </ul>
 
 <div class="tab-content" id="konsinyasiTabContent">
+    <!-- Tab Kelola Pemasok -->
+    <div class="tab-pane fade show active" id="pemasok-pane" role="tabpanel">
+        <div class="card card-tab">
+            <div class="card-header d-flex justify-content-end">
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#supplierModal" data-action="add"><i class="bi bi-plus-circle"></i> Tambah Pemasok</button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead><tr><th>Nama Pemasok</th><th>Kontak</th><th class="text-end">Aksi</th></tr></thead>
+                        <tbody id="suppliers-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Kelola Barang -->
+    <div class="tab-pane fade" id="barang-pane" role="tabpanel">
+        <div class="card card-tab">
+            <div class="card-header d-flex justify-content-end">
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" data-action="add"><i class="bi bi-plus-circle"></i> Tambah Barang</button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr><th>Nama Barang</th><th>Pemasok</th><th class="text-end">Harga Jual</th><th class="text-end">Harga Beli</th><th class="text-end">Stok</th><th class="text-end">Aksi</th></tr>
+                        </thead>
+                        <tbody id="items-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Tab Penjualan -->
-    <div class="tab-pane fade show active" id="penjualan-pane" role="tabpanel">
+    <div class="tab-pane fade" id="penjualan-pane" role="tabpanel">
         <div class="card card-tab">
             <div class="card-header d-flex justify-content-between">
                 <span>Form Penjualan Barang Konsinyasi</span>
@@ -53,37 +92,54 @@ if (!$is_spa_request) {
         </div>
     </div>
 
-    <!-- Tab Kelola Barang -->
-    <div class="tab-pane fade" id="barang-pane" role="tabpanel">
-        <div class="card card-tab">
-            <div class="card-header d-flex justify-content-end">
-                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" data-action="add"><i class="bi bi-plus-circle"></i> Tambah Barang</button>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr><th>Nama Barang</th><th>Pemasok</th><th class="text-end">Harga Jual</th><th class="text-end">Harga Beli</th><th class="text-end">Stok</th><th class="text-end">Aksi</th></tr>
-                        </thead>
-                        <tbody id="items-table-body"></tbody>
-                    </table>
+    <!-- Tab Pembayaran Utang -->
+    <div class="tab-pane fade" id="pembayaran-pane" role="tabpanel">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card card-tab mb-3">
+                    <div class="card-header">Form Pembayaran Utang</div>
+                    <div class="card-body">
+                        <form id="consignment-payment-form">
+                            <div class="mb-3">
+                                <label for="cp-tanggal" class="form-label">Tanggal Bayar</label>
+                                <input type="date" class="form-control" id="cp-tanggal" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="cp-supplier-id" class="form-label">Bayar ke Pemasok</label>
+                                <select class="form-select" id="cp-supplier-id" required></select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="cp-jumlah" class="form-label">Jumlah Pembayaran</label>
+                                <input type="number" class="form-control" id="cp-jumlah" required placeholder="0">
+                            </div>
+                            <div class="mb-3">
+                                <label for="cp-kas-account-id" class="form-label">Dari Akun Kas/Bank</label>
+                                <select class="form-select" id="cp-kas-account-id" required></select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="cp-keterangan" class="form-label">Keterangan</label>
+                                <textarea class="form-control" id="cp-keterangan" rows="2"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100"><i class="bi bi-send-check-fill"></i> Catat Pembayaran</button>
+                        </form>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Tab Kelola Pemasok -->
-    <div class="tab-pane fade" id="pemasok-pane" role="tabpanel">
-        <div class="card card-tab">
-            <div class="card-header d-flex justify-content-end">
-                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#supplierModal" data-action="add"><i class="bi bi-plus-circle"></i> Tambah Pemasok</button>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead><tr><th>Nama Pemasok</th><th>Kontak</th><th class="text-end">Aksi</th></tr></thead>
-                        <tbody id="suppliers-table-body"></tbody>
-                    </table>
+            <div class="col-md-8">
+                <div class="card card-tab mb-3">
+                    <div class="card-header d-flex justify-content-between">
+                        <span>Riwayat Pembayaran</span>
+                        <a href="#" id="view-debt-summary-report-link" data-bs-toggle="modal" data-bs-target="#debtSummaryReportModal">Lihat Laporan Sisa Utang &raquo;</a>
+                    </div>
+                    <div class="card-header">Riwayat Pembayaran</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead><tr><th>Tanggal</th><th>Pemasok</th><th>Keterangan</th><th class="text-end">Jumlah</th></tr></thead>
+                                <tbody id="payment-history-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -133,12 +189,69 @@ if (!$is_spa_request) {
 </div>
 
 <!-- Modal Laporan Penjualan -->
-<div class="modal fade" id="consignmentReportModal" tabindex="-1">
+<div class="modal fade" id="consignmentReportModal" tabindex="-1" aria-labelledby="consignmentReportModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title">Laporan Penjualan Konsinyasi</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body" id="consignment-report-body"></div>
-      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button></div>
+      <div class="modal-header bg-light">
+        <h5 class="modal-title" id="consignmentReportModalLabel"><i class="bi bi-file-earmark-bar-graph-fill"></i> Laporan Utang Konsinyasi (Berdasarkan Penjualan)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2 align-items-end mb-3 p-3 bg-light rounded">
+            <div class="col-md-3">
+                <label for="report-start-date" class="form-label">Tanggal Mulai</label>
+                <input type="date" id="report-start-date" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-3">
+                <label for="report-end-date" class="form-label">Tanggal Akhir</label>
+                <input type="date" id="report-end-date" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6">
+                <button id="filter-report-btn" class="btn btn-sm btn-primary"><i class="bi bi-filter"></i> Tampilkan</button>
+                <button id="print-report-btn" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer-fill"></i> Cetak PDF</button>
+            </div>
+        </div>
+        <div id="consignment-report-body">
+            <p class="text-muted text-center">Silakan atur filter tanggal dan klik "Tampilkan" untuk melihat laporan.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Laporan Sisa Utang -->
+<div class="modal fade" id="debtSummaryReportModal" tabindex="-1" aria-labelledby="debtSummaryReportModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="debtSummaryReportModalLabel"><i class="bi bi-journal-check"></i> Laporan Sisa Utang per Pemasok</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2 align-items-end mb-3 p-3 bg-light rounded">
+            <div class="col-md-4">
+                <label for="sisa-utang-start-date" class="form-label">Tanggal Mulai</label>
+                <input type="date" id="sisa-utang-start-date" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4">
+                <label for="sisa-utang-end-date" class="form-label">Tanggal Akhir</label>
+                <input type="date" id="sisa-utang-end-date" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4">
+                <button id="filter-sisa-utang-btn" class="btn btn-sm btn-primary w-100"><i class="bi bi-filter"></i> Tampilkan</button>
+            </div>
+        </div>
+        <div id="debt-summary-report-body">
+            <p class="text-muted text-center">Silakan atur filter tanggal dan klik "Tampilkan" untuk melihat laporan.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" id="print-debt-summary-btn"><i class="bi bi-printer-fill"></i> Cetak PDF</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+      </div>
     </div>
   </div>
 </div>
