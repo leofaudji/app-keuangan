@@ -73,7 +73,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     <div class="tab-pane fade" id="accounting-settings" role="tabpanel">
         <div class="card card-tab">
             <div class="card-header">
-                Pengaturan Akuntansi
+                Pengaturan Akun Penting
             </div>
             <div class="card-body">
                 <form id="accounting-settings-form">

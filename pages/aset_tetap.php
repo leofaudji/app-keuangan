@@ -90,6 +90,10 @@ if (!$is_spa_request) {
                     <label for="harga_perolehan" class="form-label">Harga Perolehan</label>
                     <input type="number" class="form-control" id="harga_perolehan" name="harga_perolehan" required>
                 </div>
+                <div class="col-md-6 mb-3">
+                    <label for="nilai_residu" class="form-label">Nilai Residu (Sisa)</label>
+                    <input type="number" class="form-control" id="nilai_residu" name="nilai_residu" value="0" required>
+                </div>
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
@@ -100,6 +104,7 @@ if (!$is_spa_request) {
                     <label for="metode_penyusutan" class="form-label">Metode Penyusutan</label>
                     <select class="form-select" id="metode_penyusutan" name="metode_penyusutan">
                         <option value="Garis Lurus" selected>Garis Lurus</option>
+                        <option value="Saldo Menurun">Saldo Menurun (Double Declining)</option>
                     </select>
                 </div>
             </div>
@@ -113,6 +118,41 @@ if (!$is_spa_request) {
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
         <button type="button" class="btn btn-primary" id="save-asset-btn">Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Pelepasan Aset -->
+<div class="modal fade" id="disposalModal" tabindex="-1" aria-labelledby="disposalModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="disposalModalLabel">Pelepasan/Penjualan Aset</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="disposal-form">
+            <input type="hidden" name="action" value="dispose_asset">
+            <input type="hidden" name="asset_id" id="disposal-asset-id">
+            <p>Anda akan melepas aset: <strong id="disposal-asset-name"></strong></p>
+            <div class="mb-3">
+                <label for="tanggal_pelepasan" class="form-label">Tanggal Pelepasan/Penjualan</label>
+                <input type="date" class="form-control" id="tanggal_pelepasan" name="tanggal_pelepasan" required>
+            </div>
+            <div class="mb-3">
+                <label for="harga_jual" class="form-label">Harga Jual (Isi 0 jika dibuang)</label>
+                <input type="number" class="form-control" id="harga_jual" name="harga_jual" value="0" required>
+            </div>
+            <div class="mb-3" id="disposal-kas-account-container">
+                <label for="kas_account_id" class="form-label">Uang Diterima di Akun Kas/Bank</label>
+                <select class="form-select" id="kas_account_id" name="kas_account_id"></select>
+            </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-danger" id="save-disposal-btn">Proses Pelepasan</button>
       </div>
     </div>
   </div>

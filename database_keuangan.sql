@@ -215,11 +215,14 @@ CREATE TABLE `fixed_assets` (
   `nama_aset` varchar(150) NOT NULL,
   `tanggal_akuisisi` date NOT NULL,
   `harga_perolehan` decimal(15,2) NOT NULL,
+  `nilai_residu` decimal(15,2) NOT NULL DEFAULT 0.00,
   `masa_manfaat` int(11) NOT NULL COMMENT 'Dalam tahun',
-  `metode_penyusutan` enum('Garis Lurus') NOT NULL DEFAULT 'Garis Lurus',
+  `metode_penyusutan` enum('Garis Lurus','Saldo Menurun') NOT NULL DEFAULT 'Garis Lurus',
   `akun_aset_id` int(11) NOT NULL,
   `akun_akumulasi_penyusutan_id` int(11) NOT NULL,
   `akun_beban_penyusutan_id` int(11) NOT NULL,
+  `status` enum('Aktif','Dilepas') NOT NULL DEFAULT 'Aktif',
+  `tanggal_pelepasan` date DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `created_by` int(11) DEFAULT NULL,
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -292,8 +295,10 @@ INSERT INTO `accounts` (`id`, `user_id`, `parent_id`, `kode_akun`, `nama_akun`, 
     (601, 1, 600, '6-1100', 'Beban Gaji Karyawan', 'Beban', 'Debit', 'Operasi', 0, 0.00),
     (602, 1, 600, '6-1200', 'Beban Listrik & Air', 'Beban', 'Debit', 'Operasi', 0, 0.00),
     (603, 1, 600, '6-1300', 'Beban Perlengkapan Toko', 'Beban', 'Debit', 'Operasi', 0, 0.00),
-    (108, 1, 106, '1-2101', 'Akumulasi Penyusutan - Peralatan', 'Aset', 'Kredit', NULL, 0, 0.00),
-    (604, 1, 600, '6-1400', 'Beban Penyusutan - Peralatan', 'Beban', 'Debit', 'Operasi', 0, 0.00);
+    (108, 1, 106, '1-2101', 'Akum. Penyusutan - Peralatan', 'Aset', 'Kredit', NULL, 0, 0.00),
+    (604, 1, 600, '6-1400', 'Beban Penyusutan - Peralatan', 'Beban', 'Debit', 'Operasi', 0, 0.00),
+    (403, 1, 400, '4-9000', 'Laba Pelepasan Aset', 'Pendapatan', 'Kredit', 'Operasi', 0, 0.00),
+    (605, 1, 600, '6-9000', 'Rugi Pelepasan Aset', 'Beban', 'Debit', 'Operasi', 0, 0.00);
 
 -- Data Demo Transaksi
 -- Transaksi Sederhana (Pemasukan & Pengeluaran Kas)
@@ -393,4 +398,3 @@ ALTER TABLE `general_ledger` ADD KEY `idx_reconciliation_id` (`reconciliation_id
 
 -- Tambahkan index untuk mempercepat query
 CREATE INDEX `idx_reconciliation` ON `general_ledger` (`account_id`, `is_reconciled`, `tanggal`);
-

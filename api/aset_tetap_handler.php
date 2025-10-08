@@ -39,13 +39,15 @@ try {
         echo json_encode(['status' => 'success', 'data' => $assets]);
 
     } elseif ($action === 'get_accounts') {
-        $stmt = $conn->prepare("SELECT id, kode_akun, nama_akun, tipe_akun FROM accounts WHERE user_id = ? AND tipe_akun IN ('Aset', 'Beban') ORDER BY kode_akun");
+        $stmt = $conn->prepare("SELECT id, kode_akun, nama_akun, tipe_akun, is_kas FROM accounts WHERE user_id = ? AND tipe_akun IN ('Aset', 'Beban', 'Pendapatan') ORDER BY kode_akun");
         $stmt->bind_param('i', $user_id);
         $stmt->execute();
         $all_accounts = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $accounts = [
             'aset' => array_values(array_filter($all_accounts, fn($acc) => $acc['tipe_akun'] == 'Aset')),
             'beban' => array_values(array_filter($all_accounts, fn($acc) => $acc['tipe_akun'] == 'Beban')),
+            'pendapatan' => array_values(array_filter($all_accounts, fn($acc) => $acc['tipe_akun'] == 'Pendapatan')),
+            'kas' => array_values(array_filter($all_accounts, fn($acc) => $acc['is_kas'] == 1)),
         ];
         echo json_encode(['status' => 'success', 'data' => $accounts]);
 
@@ -108,7 +110,7 @@ try {
         $posting_date = date('Y-m-t', strtotime("$year-$month-01")); // Selalu post di akhir bulan
 
         // Ambil semua aset yang masih aktif (belum habis masa manfaatnya)
-        $stmt_assets = $conn->prepare("SELECT * FROM fixed_assets WHERE user_id = ? AND tanggal_akuisisi <= ?");
+        $stmt_assets = $conn->prepare("SELECT * FROM fixed_assets WHERE user_id = ? AND tanggal_akuisisi <= ? AND status = 'Aktif'");
         $stmt_assets->bind_param('is', $user_id, $posting_date);
         $stmt_assets->execute();
         $assets = $stmt_assets->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -119,7 +121,19 @@ try {
 
         foreach ($assets as $asset) {
             $asset_id = $asset['id'];
-            $penyusutan_bulanan = ($asset['harga_perolehan'] / $asset['masa_manfaat']) / 12;
+            $dasar_penyusutan = $asset['harga_perolehan'] - $asset['nilai_residu'];
+            $penyusutan_bulanan = 0;
+
+            if ($asset['metode_penyusutan'] === 'Garis Lurus') {
+                $penyusutan_bulanan = ($dasar_penyusutan / $asset['masa_manfaat']) / 12;
+            } elseif ($asset['metode_penyusutan'] === 'Saldo Menurun') {
+                // Menggunakan metode Saldo Menurun Ganda (Double Declining Balance)
+                $rate = (1 / $asset['masa_manfaat']) * 2;
+                $nilai_buku_awal = $asset['harga_perolehan'] - (float)$conn->query("SELECT COALESCE(SUM(kredit), 0) FROM general_ledger WHERE keterangan LIKE '%(Aset ID: {$asset_id})%' AND tanggal < '{$year}-{$month}-01'")->fetch_row()[0];
+                
+                $penyusutan_tahunan = $nilai_buku_awal * $rate;
+                $penyusutan_bulanan = $penyusutan_tahunan / 12;
+            }
 
             // Cek apakah sudah pernah diposting untuk bulan dan aset ini
             $stmt_check = $conn->prepare("SELECT id FROM general_ledger WHERE user_id = ? AND MONTH(tanggal) = ? AND YEAR(tanggal) = ? AND keterangan LIKE ?");
@@ -138,11 +152,11 @@ try {
             $total_depreciated = $stmt_total_dep->get_result()->fetch_assoc()['total'];
             $stmt_total_dep->close();
 
-            if ($total_depreciated >= $asset['harga_perolehan']) continue; // Lewati jika sudah lunas
+            if ($total_depreciated >= $dasar_penyusutan) continue; // Lewati jika sudah lunas
 
             // Pastikan penyusutan terakhir tidak melebihi nilai sisa
-            if (($total_depreciated + $penyusutan_bulanan) > $asset['harga_perolehan']) {
-                $penyusutan_bulanan = $asset['harga_perolehan'] - $total_depreciated;
+            if (($total_depreciated + $penyusutan_bulanan) > $dasar_penyusutan) {
+                $penyusutan_bulanan = $dasar_penyusutan - $total_depreciated;
             }
 
             if ($penyusutan_bulanan <= 0) continue;
@@ -172,6 +186,84 @@ try {
         } else {
             echo json_encode(['status' => 'info', 'message' => 'Tidak ada penyusutan baru yang diposting. Kemungkinan semua sudah terposting atau sudah lunas.']);
         }
+
+    } elseif ($action === 'dispose_asset') {
+        $asset_id = (int)($_POST['asset_id'] ?? 0);
+        $tanggal_pelepasan = $_POST['tanggal_pelepasan'];
+        $harga_jual = (float)($_POST['harga_jual'] ?? 0);
+        $kas_account_id = (int)($_POST['kas_account_id'] ?? 0);
+
+        if ($asset_id <= 0 || empty($tanggal_pelepasan)) {
+            throw new Exception("Data pelepasan tidak lengkap.");
+        }
+        if ($harga_jual > 0 && $kas_account_id <= 0) {
+            throw new Exception("Pilih akun kas/bank untuk menerima hasil penjualan.");
+        }
+
+        $conn->begin_transaction();
+
+        // 1. Ambil data aset
+        $stmt_asset = $conn->prepare("SELECT * FROM fixed_assets WHERE id = ? AND user_id = ?");
+        $stmt_asset->bind_param('ii', $asset_id, $user_id);
+        $stmt_asset->execute();
+        $asset = $stmt_asset->get_result()->fetch_assoc();
+        $stmt_asset->close();
+        if (!$asset || $asset['status'] === 'Dilepas') {
+            throw new Exception("Aset tidak ditemukan atau sudah dilepas.");
+        }
+
+        // 2. Hitung total akumulasi penyusutan hingga tanggal pelepasan
+        $stmt_dep = $conn->prepare("SELECT COALESCE(SUM(kredit), 0) as total FROM general_ledger WHERE keterangan LIKE ? AND tanggal <= ?");
+        $like_pattern = "%(Aset ID: $asset_id)%";
+        $stmt_dep->bind_param('ss', $like_pattern, $tanggal_pelepasan);
+        $stmt_dep->execute();
+        $akumulasi_penyusutan = (float)$stmt_dep->get_result()->fetch_assoc()['total'];
+        $stmt_dep->close();
+
+        // 3. Hitung nilai buku dan laba/rugi
+        $harga_perolehan = (float)$asset['harga_perolehan'];
+        $nilai_buku = $harga_perolehan - $akumulasi_penyusutan;
+        $laba_rugi = $harga_jual - $nilai_buku;
+
+        // 4. Ambil akun laba/rugi dari pengaturan
+        $loss_acc_id = get_setting('loss_on_disposal_account', 605, $conn); // Default ke 605
+        $gain_acc_id = get_setting('gain_on_disposal_account', 403, $conn); // Default ke 403
+
+        // 5. Buat Jurnal Pelepasan
+        $keterangan_jurnal = "Pelepasan aset: {$asset['nama_aset']} (ID: {$asset_id})";
+        $nomor_referensi = "DIS/{$asset_id}";
+        $zero = 0.00;
+        $stmt_gl = $conn->prepare("INSERT INTO general_ledger (user_id, tanggal, keterangan, nomor_referensi, account_id, debit, kredit, ref_type, ref_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 'jurnal', 0, ?)");
+
+        // (Dr) Akumulasi Penyusutan
+        $stmt_gl->bind_param('isssiddi', $user_id, $tanggal_pelepasan, $keterangan_jurnal, $nomor_referensi, $asset['akun_akumulasi_penyusutan_id'], $akumulasi_penyusutan, $zero, $logged_in_user_id);
+        $stmt_gl->execute();
+        // (Dr) Kas (jika ada penjualan)
+        if ($harga_jual > 0) {
+            $stmt_gl->bind_param('isssiddi', $user_id, $tanggal_pelepasan, $keterangan_jurnal, $nomor_referensi, $kas_account_id, $harga_jual, $zero, $logged_in_user_id);
+            $stmt_gl->execute();
+        }
+        // (Dr atau Cr) Laba/Rugi
+        if ($laba_rugi < 0) { // Rugi
+            $stmt_gl->bind_param('isssiddi', $user_id, $tanggal_pelepasan, $keterangan_jurnal, $nomor_referensi, $loss_acc_id, abs($laba_rugi), $zero, $logged_in_user_id);
+            $stmt_gl->execute();
+        } elseif ($laba_rugi > 0) { // Laba
+            $stmt_gl->bind_param('isssiddi', $user_id, $tanggal_pelepasan, $keterangan_jurnal, $nomor_referensi, $gain_acc_id, $zero, $laba_rugi, $logged_in_user_id);
+            $stmt_gl->execute();
+        }
+        // (Cr) Akun Aset
+        $stmt_gl->bind_param('isssiddi', $user_id, $tanggal_pelepasan, $keterangan_jurnal, $nomor_referensi, $asset['akun_aset_id'], $zero, $harga_perolehan, $logged_in_user_id);
+        $stmt_gl->execute();
+        $stmt_gl->close();
+
+        // 6. Update status aset
+        $stmt_update = $conn->prepare("UPDATE fixed_assets SET status = 'Dilepas', tanggal_pelepasan = ? WHERE id = ?");
+        $stmt_update->bind_param('si', $tanggal_pelepasan, $asset_id);
+        $stmt_update->execute();
+        $stmt_update->close();
+
+        $conn->commit();
+        echo json_encode(['status' => 'success', 'message' => 'Pelepasan aset berhasil dicatat.']);
 
     } else {
         throw new Exception("Aksi tidak valid.");

@@ -68,6 +68,19 @@ class BukuPanduanReportBuilder implements ReportBuilderInterface
         // Konten panduan sekarang didefinisikan di sini dalam bentuk array terstruktur.
         return [
             [
+                'title' => 'Alur Kerja Aplikasi (Workflow)',
+                'content' => [
+                    ['type' => 'p', 'text' => 'Berikut adalah alur kerja yang direkomendasikan untuk menggunakan aplikasi ini secara efektif.'],
+                    ['type' => 'ol', 'items' => [
+                        'Tahap 1 - Setup Awal: Lakukan konfigurasi awal di menu Administrasi dan Master Data. Siapkan Bagan Akun dan isi Saldo Awal.',
+                        'Tahap 2 - Operasional Harian: Catat semua transaksi pemasukan, pengeluaran, dan jurnal manual yang terjadi setiap hari.',
+                        'Tahap 3 - Proses Periodik: Lakukan proses bulanan seperti Rekonsiliasi Bank dan Posting Penyusutan Aset.',
+                        'Tahap 4 - Pelaporan & Analisis: Gunakan menu Laporan untuk memantau kinerja dan kesehatan keuangan.',
+                        'Tahap 5 - Akhir Periode: Lakukan proses Tutup Buku di akhir tahun untuk memfinalisasi laporan tahunan.',
+                    ]],
+                ],
+            ],
+            [
                 'title' => '1. Pengaturan Awal: Bagan Akun (COA)',
                 'content' => [
                     ['type' => 'p', 'text' => 'Bagan Akun adalah daftar semua akun yang digunakan dalam pencatatan keuangan. Pengaturan ini adalah langkah pertama dan paling penting.'],
@@ -131,6 +144,26 @@ class BukuPanduanReportBuilder implements ReportBuilderInterface
                 ],
             ],
             [
+                'title' => '5. Mengelola Aset Tetap & Penyusutan',
+                'content' => [
+                    ['type' => 'p', 'text' => 'Fitur ini membantu Anda mencatat aset tetap (seperti peralatan, kendaraan) dan menghitung penyusutannya secara otomatis setiap bulan.'],
+                    ['type' => 'p', 'text' => 'Langkah 1: Menambah Aset Baru'],
+                    ['type' => 'ol', 'items' => [
+                        'Buka menu Kas & Bank > Aset Tetap.',
+                        'Klik "Tambah Aset".',
+                        'Isi detail aset seperti Nama, Tanggal Perolehan, Harga Perolehan, dan Masa Manfaat (dalam tahun).',
+                        'Penting: Petakan akun-akun yang sesuai. Anda mungkin perlu membuat akun baru di Bagan Akun terlebih dahulu (Akun Aset, Akun Akumulasi Penyusutan, dan Akun Beban Penyusutan).',
+                        'Klik "Simpan".',
+                    ]],
+                    ['type' => 'p', 'text' => 'Langkah 2: Memposting Jurnal Penyusutan'],
+                    ['type' => 'ol', 'items' => [
+                        'Di halaman Aset Tetap, pilih Bulan dan Tahun pada bagian "Posting Penyusutan Periodik".',
+                        'Klik tombol "Posting Jurnal Penyusutan".',
+                        'Sistem akan otomatis menghitung penyusutan bulanan untuk semua aset yang aktif dan membuat jurnalnya. Jurnal yang sudah pernah dibuat untuk periode yang sama tidak akan dibuat ulang.',
+                    ]],
+                ],
+            ],
+            [
                 'title' => '6. Otomatisasi dengan Transaksi Berulang',
                 'content' => [
                     ['type' => 'p', 'text' => 'Fitur ini memungkinkan Anda untuk membuat template jurnal yang akan dijalankan secara otomatis oleh sistem sesuai jadwal yang Anda tentukan.'],
@@ -164,6 +197,19 @@ class BukuPanduanReportBuilder implements ReportBuilderInterface
                 ],
             ],
             [
+                'title' => '7. Melihat Laporan & Analisis',
+                'content' => [
+                    ['type' => 'p', 'text' => 'Semua hasil pencatatan Anda dapat dilihat dalam berbagai laporan di bawah menu Laporan & Analisis.'],
+                    ['type' => 'ol', 'items' => [
+                        'Laporan Keuangan: Menampilkan Neraca, Laba Rugi, dan Arus Kas.',
+                        'Perubahan Laba: Menunjukkan detail perubahan pada akun Laba Ditahan.',
+                        'Laporan Harian: Ringkasan kas masuk dan keluar untuk tanggal tertentu.',
+                        'Analisis Rasio: Menghitung rasio keuangan penting untuk mengukur kesehatan finansial.',
+                        'Anggaran: Membandingkan anggaran belanja dengan realisasi.',
+                    ]],
+                ],
+            ],
+            [
                 'title' => '8. Analisis Mendalam: Analisis Rasio Keuangan',
                 'content' => [
                     ['type' => 'p', 'text' => 'Fitur ini secara otomatis menghitung rasio-rasio keuangan penting untuk memberikan gambaran cepat tentang kesehatan dan kinerja keuangan perusahaan Anda.'],
@@ -177,16 +223,17 @@ class BukuPanduanReportBuilder implements ReportBuilderInterface
                 ],
             ],
             [
-                'title' => '9. Konfigurasi Sistem: Pengaturan Aplikasi (Khusus Admin)',
+                'title' => '9. Proses Akhir Periode: Tutup Buku (Khusus Admin)',
                 'content' => [
-                    ['type' => 'p', 'text' => 'Halaman ini adalah pusat kendali aplikasi, tempat Anda dapat menyesuaikan berbagai aspek sistem agar sesuai dengan kebutuhan Anda. Fitur ini hanya dapat diakses oleh Admin.'],
-                    ['type' => 'p', 'text' => 'Area Pengaturan meliputi: Umum, Transaksi, Akuntansi, Arus Kas, dan Konsinyasi.'],
-                    ['type' => 'p', 'text' => 'Langkah Penggunaan:'],
+                    ['type' => 'p', 'text' => 'Proses Tutup Buku adalah langkah akuntansi yang dilakukan di akhir periode (biasanya akhir tahun) untuk menolkan saldo akun-akun sementara (Pendapatan dan Beban) dan memindahkan laba atau rugi bersih ke akun Laba Ditahan (Retained Earnings).'],
+                    ['type' => 'alert', 'text' => 'Fitur ini hanya dapat diakses oleh Admin. Pastikan semua transaksi pada periode tersebut sudah final sebelum melakukan tutup buku.'],
                     ['type' => 'ol', 'items' => [
-                        'Buka menu Administrasi > Pengaturan Aplikasi.',
-                        'Pilih tab pengaturan yang ingin Anda ubah (misalnya, "Umum").',
-                        'Lakukan perubahan yang diperlukan pada form.',
-                        'Klik tombol "Simpan Pengaturan" di bagian bawah setiap tab untuk menerapkan perubahan.',
+                        'Pastikan akun Laba Ditahan sudah diatur di menu Administrasi > Pengaturan > Akuntansi.',
+                        'Buka menu Administrasi > Tutup Buku.',
+                        'Pilih tanggal akhir periode yang akan ditutup (misalnya, 31 Desember 2023).',
+                        'Klik tombol "Proses Tutup Buku" dan konfirmasi.',
+                        'Sistem akan secara otomatis membuat Jurnal Penutup. Anda dapat melihat hasilnya di halaman Daftar Jurnal.',
+                        'Setelah proses ini, semua transaksi sebelum tanggal tutup buku akan dikunci dan tidak dapat diubah atau dihapus.',
                     ]],
                 ],
             ],

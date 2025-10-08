@@ -16,14 +16,94 @@ if (!$is_spa_request) {
 
 <div class="accordion" id="panduanAccordion">
 
+    <!-- Panduan 0: Workflow -->
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="headingZero">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseZero" aria-expanded="true" aria-controls="collapseZero">
+                <strong>Alur Kerja Aplikasi (Workflow)</strong>
+            </button>
+        </h2>
+        <div id="collapseZero" class="accordion-collapse collapse show" aria-labelledby="headingZero" data-bs-parent="#panduanAccordion">
+            <div class="accordion-body">
+                <p>Berikut adalah gambaran alur kerja yang direkomendasikan untuk menggunakan aplikasi ini secara efektif dari awal hingga akhir periode akuntansi.</p>
+                <div class="mermaid-container">
+                    <pre class="mermaid" style="font-size: 1.1em;">
+                    graph TD
+                        %% Define Styles
+                        %% Menambahkan font-size ke dalam style
+                        classDef setup fill:#e0f7fa,stroke:#0097a7,stroke-width:2px,color:#004d40
+                        classDef daily fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#1b5e20
+                        classDef periodic fill:#fffde7,stroke:#fbc02d,stroke-width:2px,color:#f57f17
+                        classDef report fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#0d47a1
+                        classDef final fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#880e4f
+
+                        subgraph " "
+                            direction LR
+                            subgraph "Tahap 1: Setup Awal"
+                                direction TB
+                                A1{"Konfigurasi Pengaturan"}:::setup
+                                A2["Siapkan Bagan Akun (COA)"]:::setup
+                                A3["Isi Saldo Awal"]:::setup
+                                A1 --> A2 --> A3
+                            end
+    
+                            subgraph "Tahap 2: Operasional Harian"
+                                direction TB
+                                B1("Catat Transaksi Kas"):::daily
+                                B2("Buat Jurnal Manual"):::daily
+                                B3("Kelola Konsinyasi"):::daily
+                                B4("Catat Aset Baru"):::daily
+                            end
+    
+                            subgraph "Tahap 3: Proses Periodik (Bulanan)"
+                                direction TB
+                                C1("Posting Penyusutan"):::periodic
+                                C2("Rekonsiliasi Bank"):::periodic
+                            end
+    
+                            subgraph "Tahap 4: Pelaporan & Analisis"
+                                direction TB
+                                D1>Laporan Keuangan]:::report
+                                D2>Buku Besar]:::report
+                                D3>Analisis Rasio]:::report
+                            end
+    
+                            subgraph "Tahap 5: Akhir Periode (Tahunan)"
+                                direction TB
+                                E1([Proses Tutup Buku]):::final
+                            end
+                        end
+
+                        A --> B --> C --> D --> E
+
+                        %% Define Clickable Links
+                        click A1 "<?= base_url('/settings') ?>" "Buka Pengaturan" _blank
+                        click A2 "<?= base_url('/coa') ?>" "Buka Bagan Akun" _blank
+                        click A3 "<?= base_url('/saldo-awal-neraca') ?>" "Buka Saldo Awal" _blank
+                        click B1 "<?= base_url('/transaksi') ?>" "Buka Transaksi" _blank
+                        click B2 "<?= base_url('/entri-jurnal') ?>" "Buka Entri Jurnal" _blank
+                        click B3 "<?= base_url('/konsinyasi') ?>" "Buka Konsinyasi" _blank
+                        click B4 "<?= base_url('/aset-tetap') ?>" "Buka Aset Tetap" _blank
+                        click C1 "<?= base_url('/aset-tetap') ?>" "Buka Aset Tetap" _blank
+                        click C2 "<?= base_url('/rekonsiliasi-bank') ?>" "Buka Rekonsiliasi" _blank
+                        click D1 "<?= base_url('/laporan') ?>" "Buka Laporan" _blank
+                        click D2 "<?= base_url('/buku-besar') ?>" "Buka Buku Besar" _blank
+                        click D3 "<?= base_url('/analisis-rasio') ?>" "Buka Analisis Rasio" _blank
+                        click E1 "<?= base_url('/tutup-buku') ?>" "Buka Tutup Buku" _blank
+                    </pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Panduan 1: Pengaturan Awal -->
     <div class="accordion-item">
         <h2 class="accordion-header" id="headingOne">
-            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
                 <strong>1. Pengaturan Awal (Penting!)</strong>
             </button>
         </h2>
-        <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#panduanAccordion">
+        <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#panduanAccordion">
             <div class="accordion-body">
                 <p>Sebelum memulai pencatatan, ada dua langkah krusial yang harus dilakukan untuk memastikan data akurat.</p>
                 <h5>Langkah 1.1: Menyiapkan Bagan Akun (COA)</h5>
@@ -135,14 +215,52 @@ if (!$is_spa_request) {
         </div>
     </div>
 
-    <!-- Panduan 5: Otomatisasi -->
+    <!-- Panduan 5: Aset Tetap -->
     <div class="accordion-item">
         <h2 class="accordion-header" id="headingFive">
             <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFive" aria-expanded="false" aria-controls="collapseFive">
-                <strong>5. Otomatisasi dengan Transaksi Berulang</strong>
+                <strong>5. Mengelola Aset Tetap & Penyusutan</strong>
             </button>
         </h2>
         <div id="collapseFive" class="accordion-collapse collapse" aria-labelledby="headingFive" data-bs-parent="#panduanAccordion">
+            <div class="accordion-body">
+                <p>Fitur ini membantu Anda mencatat aset tetap (seperti peralatan, kendaraan) dan menghitung penyusutannya secara otomatis setiap bulan.</p>
+                <h5>Langkah 1: Menambah Aset Baru</h5>
+                <ol>
+                    <li>Buka menu <strong>Kas & Bank &raquo; Aset Tetap</strong>.</li>
+                    <li>Klik <strong>"Tambah Aset"</strong>.</li>
+                    <li>Isi detail aset seperti Nama, Tanggal Perolehan, Harga Perolehan, dan Masa Manfaat (dalam tahun).</li>
+                    <li><strong>Penting:</strong> Petakan akun-akun yang sesuai. Anda mungkin perlu membuat akun baru di Bagan Akun terlebih dahulu.
+                        <ul>
+                            <li><strong>Akun Aset:</strong> Akun untuk mencatat nilai aset itu sendiri (misal: 1-2100 Peralatan Kantor).</li>
+                            <li><strong>Akun Akumulasi Penyusutan:</strong> Akun kontra-aset untuk menampung total penyusutan (misal: 1-2101 Akum. Peny. - Peralatan). Tipe akunnya adalah 'Aset' dengan saldo normal 'Kredit'.</li>
+                            <li><strong>Akun Beban Penyusutan:</strong> Akun untuk mencatat beban penyusutan setiap bulan (misal: 6-1400 Beban Penyusutan). Tipe akunnya adalah 'Beban'.</li>
+                        </ul>
+                    </li>
+                    <li>Klik <strong>"Simpan"</strong>.</li>
+                </ol>
+                <hr>
+                <h5>Langkah 2: Memposting Jurnal Penyusutan</h5>
+                <ol>
+                    <li>Di halaman Aset Tetap, pilih Bulan dan Tahun pada bagian <strong>"Posting Penyusutan Periodik"</strong>.</li>
+                    <li>Klik tombol <strong>"Posting Jurnal Penyusutan"</strong>.</li>
+                    <li>Sistem akan otomatis menghitung penyusutan bulanan untuk semua aset yang aktif dan membuat jurnalnya. Jurnal yang sudah pernah dibuat untuk periode yang sama tidak akan dibuat ulang.</li>
+                </ol>
+                <a href="<?= base_url('/aset-tetap') ?>" class="btn btn-sm btn-outline-primary mt-2" target="_blank">
+                    <i class="bi bi-box-arrow-up-right me-2"></i>Buka Halaman Aset Tetap
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panduan 6: Otomatisasi -->
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="headingSix">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSix" aria-expanded="false" aria-controls="collapseSix">
+                <strong>6. Otomatisasi dengan Transaksi Berulang</strong>
+            </button>
+        </h2>
+        <div id="collapseSix" class="accordion-collapse collapse" aria-labelledby="headingSix" data-bs-parent="#panduanAccordion">
             <div class="accordion-body">
                 <p>Fitur ini memungkinkan Anda membuat template untuk transaksi atau jurnal yang terjadi secara rutin (misal: bayar sewa, gaji) agar dibuat otomatis oleh sistem.</p>
                 <ol>
@@ -164,14 +282,14 @@ if (!$is_spa_request) {
         </div>
     </div>
 
-    <!-- Panduan 6: Laporan & Analisis -->
+    <!-- Panduan 7: Laporan & Analisis -->
     <div class="accordion-item">
-        <h2 class="accordion-header" id="headingSix">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSix" aria-expanded="false" aria-controls="collapseSix">
-                <strong>6. Melihat Laporan & Analisis</strong>
+        <h2 class="accordion-header" id="headingSeven">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSeven" aria-expanded="false" aria-controls="collapseSeven">
+                <strong>7. Melihat Laporan & Analisis</strong>
             </button>
         </h2>
-        <div id="collapseSix" class="accordion-collapse collapse" aria-labelledby="headingSix" data-bs-parent="#panduanAccordion">
+        <div id="collapseSeven" class="accordion-collapse collapse" aria-labelledby="headingSeven" data-bs-parent="#panduanAccordion">
             <div class="accordion-body">
                 <p>Semua hasil pencatatan Anda dapat dilihat dalam berbagai laporan di bawah menu <strong>Laporan & Analisis</strong>.</p>
                 <ul>
@@ -189,14 +307,14 @@ if (!$is_spa_request) {
         </div>
     </div>
 
-    <!-- Panduan 7: Tutup Buku -->
+    <!-- Panduan 8: Tutup Buku -->
     <div class="accordion-item">
-        <h2 class="accordion-header" id="headingSeven">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSeven" aria-expanded="false" aria-controls="collapseSeven">
-                <strong>7. Proses Akhir Periode: Tutup Buku (Khusus Admin)</strong>
+        <h2 class="accordion-header" id="headingEight">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEight" aria-expanded="false" aria-controls="collapseEight">
+                <strong>8. Proses Akhir Periode: Tutup Buku (Khusus Admin)</strong>
             </button>
         </h2>
-        <div id="collapseSeven" class="accordion-collapse collapse" aria-labelledby="headingSeven" data-bs-parent="#panduanAccordion">
+        <div id="collapseEight" class="accordion-collapse collapse" aria-labelledby="headingEight" data-bs-parent="#panduanAccordion">
             <div class="accordion-body">
                 <p>Proses Tutup Buku adalah langkah akuntansi yang dilakukan di akhir periode (biasanya akhir tahun) untuk menolkan saldo akun-akun sementara (Pendapatan dan Beban) dan memindahkan laba atau rugi bersih ke akun Laba Ditahan (Retained Earnings).</p>
                 <div class="alert alert-warning small">
@@ -217,14 +335,14 @@ if (!$is_spa_request) {
         </div>
     </div>
 
-    <!-- Panduan 8: Pengaturan Aplikasi -->
+    <!-- Panduan 9: Pengaturan Aplikasi -->
     <div class="accordion-item">
-        <h2 class="accordion-header" id="headingEight">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEight" aria-expanded="false" aria-controls="collapseEight">
-                <strong>8. Konfigurasi Sistem: Pengaturan Aplikasi (Khusus Admin)</strong>
+        <h2 class="accordion-header" id="headingNine">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNine" aria-expanded="false" aria-controls="collapseNine">
+                <strong>9. Konfigurasi Sistem: Pengaturan Aplikasi (Khusus Admin)</strong>
             </button>
         </h2>
-        <div id="collapseEight" class="accordion-collapse collapse" aria-labelledby="headingEight" data-bs-parent="#panduanAccordion">
+        <div id="collapseNine" class="accordion-collapse collapse" aria-labelledby="headingNine" data-bs-parent="#panduanAccordion">
             <div class="accordion-body">
                 <p>Halaman ini adalah pusat kendali aplikasi, tempat Anda dapat menyesuaikan berbagai aspek sistem agar sesuai dengan kebutuhan Anda. Fitur ini hanya dapat diakses oleh <strong>Admin</strong>.</p>
                 <h5>Area Pengaturan:</h5>
@@ -233,6 +351,7 @@ if (!$is_spa_request) {
                     <li><strong>Transaksi:</strong> Mengatur prefix untuk nomor referensi otomatis dan memilih akun kas default.</li>
                     <li><strong>Akuntansi:</strong> Menentukan akun Laba Ditahan yang krusial untuk proses Tutup Buku.</li>
                     <li><strong>Arus Kas:</strong> Memetakan akun-akun ke dalam kategori Laporan Arus Kas (Operasi, Investasi, Pendanaan).</li>
+                    <li><strong>Konsinyasi:</strong> Memetakan akun-akun yang digunakan untuk transaksi barang titipan.</li>
                 </ul>
                 <h5>Langkah Penggunaan:</h5>
                 <ol>
@@ -249,6 +368,12 @@ if (!$is_spa_request) {
     </div>
 
 </div>
+
+<!-- Mermaid.js untuk merender diagram -->
+<script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ securityLevel: 'loose' });
+</script>
 
 <?php
 if (!$is_spa_request) {

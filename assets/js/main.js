@@ -3469,6 +3469,8 @@ function initAsetTetapPage() {
     const modal = new bootstrap.Modal(modalEl);
     const form = document.getElementById('asset-form');
     const saveBtn = document.getElementById('save-asset-btn');
+    const disposalModalEl = document.getElementById('disposalModal');
+    const disposalModal = new bootstrap.Modal(disposalModalEl);
     const postDepreciationBtn = document.getElementById('post-depreciation-btn');
     const printReportBtn = document.getElementById('print-asset-report-btn');
 
@@ -3509,16 +3511,22 @@ function initAsetTetapPage() {
             tableBody.innerHTML = '';
             if (result.data.length > 0) {
                 result.data.forEach(asset => {
+                    const isDisposed = asset.status === 'Dilepas';
+                    const statusBadge = isDisposed ? `<span class="badge bg-secondary">Dilepas</span>` : `<span class="badge bg-success">Aktif</span>`;
+                    const actionButtons = isDisposed ? `<button class="btn btn-sm btn-secondary" disabled title="Aset sudah dilepas"><i class="bi bi-check-circle-fill"></i></button>` : `
+                        <button class="btn btn-sm btn-info edit-asset-btn" data-id="${asset.id}"><i class="bi bi-pencil-fill"></i></button>
+                        <button class="btn btn-sm btn-warning dispose-asset-btn" data-id="${asset.id}" data-nama="${asset.nama_aset}"><i class="bi bi-box-arrow-right"></i></button>
+                        <button class="btn btn-sm btn-danger delete-asset-btn" data-id="${asset.id}"><i class="bi bi-trash-fill"></i></button>`;
+
                     const row = `
-                        <tr>
-                            <td>${asset.nama_aset}</td>
+                        <tr class="${isDisposed ? 'table-light text-muted' : ''}">
+                            <td>${asset.nama_aset} ${statusBadge}</td>
                             <td>${new Date(asset.tanggal_akuisisi).toLocaleDateString('id-ID')}</td>
                             <td class="text-end">${currencyFormatter.format(asset.harga_perolehan)}</td>
                             <td class="text-end">${currencyFormatter.format(asset.akumulasi_penyusutan)}</td>
                             <td class="text-end fw-bold">${currencyFormatter.format(asset.nilai_buku)}</td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-info edit-asset-btn" data-id="${asset.id}"><i class="bi bi-pencil-fill"></i></button>
-                                <button class="btn btn-sm btn-danger delete-asset-btn" data-id="${asset.id}"><i class="bi bi-trash-fill"></i></button>
+                                ${actionButtons}
                             </td>
                         </tr>
                     `;
@@ -3538,7 +3546,7 @@ function initAsetTetapPage() {
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message);
 
-            const { aset, beban } = result.data;
+            const { aset, beban, pendapatan, kas } = result.data;
             const createOptions = (accounts) => accounts.map(acc => `<option value="${acc.id}">${acc.kode_akun} - ${acc.nama_akun}</option>`).join('');
 
             document.getElementById('akun_aset_id').innerHTML = createOptions(aset);
@@ -3592,6 +3600,42 @@ function initAsetTetapPage() {
         document.body.removeChild(form);
     });
 
+    document.getElementById('save-disposal-btn').addEventListener('click', async () => {
+        const form = document.getElementById('disposal-form');
+        if (!form.checkValidity()) {
+            showToast('Harap isi semua field yang wajib.', 'error');
+            return;
+        }
+        if (confirm('Anda yakin ingin memproses pelepasan aset ini? Aksi ini akan membuat jurnal permanen dan tidak dapat dibatalkan.')) {
+            const formData = new FormData(form);
+            const response = await fetch(`${basePath}/api/aset_tetap`, { method: 'POST', body: formData });
+            const result = await response.json();
+            showToast(result.message, result.status);
+            if (result.status === 'success') {
+                disposalModal.hide();
+                loadAssets();
+            }
+        }
+    });
+
+    document.getElementById('harga_jual').addEventListener('input', (e) => {
+        const kasContainer = document.getElementById('disposal-kas-account-container');
+        if (parseFloat(e.target.value) > 0) {
+            kasContainer.style.display = 'block';
+            document.getElementById('kas_account_id').required = true;
+        } else {
+            kasContainer.style.display = 'none';
+            document.getElementById('kas_account_id').required = false;
+        }
+    });
+
+    disposalModalEl.addEventListener('show.bs.modal', async (e) => {
+        const kasSelect = document.getElementById('kas_account_id');
+        const response = await fetch(`${basePath}/api/settings?action=get_cash_accounts`);
+        const result = await response.json();
+        kasSelect.innerHTML = result.data.map(acc => `<option value="${acc.id}">${acc.nama_akun}</option>`).join('');
+    });
+
     tableBody.addEventListener('click', async (e) => {
         const editBtn = e.target.closest('.edit-asset-btn');
         if (editBtn) {
@@ -3608,6 +3652,19 @@ function initAsetTetapPage() {
                 document.getElementById('asset-id').value = asset.id;
                 modal.show();
             }
+        }
+
+        const disposeBtn = e.target.closest('.dispose-asset-btn');
+        if (disposeBtn) {
+            const form = document.getElementById('disposal-form');
+            form.reset();
+            document.getElementById('disposal-asset-id').value = disposeBtn.dataset.id;
+            document.getElementById('disposal-asset-name').textContent = disposeBtn.dataset.nama;
+            document.getElementById('tanggal_pelepasan').valueAsDate = new Date();
+            // Sembunyikan field kas/bank secara default
+            document.getElementById('disposal-kas-account-container').style.display = 'none';
+            document.getElementById('kas_account_id').required = false;
+            disposalModal.show();
         }
     });
 
